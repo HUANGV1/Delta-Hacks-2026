@@ -43,17 +43,56 @@ class ApiService {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const url = `${API_BASE_URL}${endpoint}`;
+      const response = await fetch(url, {
         ...options,
         headers,
       });
 
-      const data = await response.json();
+      // Try to parse JSON, but handle cases where response might not be JSON
+      let data: any;
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      
+      try {
+        const text = await response.text();
+        if (text) {
+          data = isJson ? JSON.parse(text) : { message: text };
+        } else {
+          data = {};
+        }
+      } catch (parseError) {
+        // If JSON parsing fails, create a meaningful error
+        data = {
+          message: `Server returned invalid response (${response.status} ${response.statusText})`,
+        };
+      }
 
       if (!response.ok) {
+        // Provide more specific error messages
+        let errorMessage = data.message || 'Request failed';
+        
+        // Handle specific status codes
+        if (response.status === 400) {
+          errorMessage = data.message || 'Invalid request. Please check your input.';
+          if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+            errorMessage = data.errors.map((e: any) => e.msg || e.message || e).join(', ');
+          }
+        } else if (response.status === 401) {
+          errorMessage = data.message || 'Authentication failed. Please check your credentials.';
+        } else if (response.status === 403) {
+          errorMessage = data.message || 'Access denied.';
+        } else if (response.status === 404) {
+          errorMessage = data.message || 'Resource not found.';
+        } else if (response.status === 409) {
+          errorMessage = data.message || 'Conflict. This resource already exists.';
+        } else if (response.status >= 500) {
+          errorMessage = data.message || 'Server error. Please try again later.';
+        }
+
         return {
           success: false,
-          message: data.message || 'Request failed',
+          message: errorMessage,
           errors: data.errors,
         };
       }
@@ -63,9 +102,19 @@ class ApiService {
         data,
       };
     } catch (error: any) {
+      // Handle network errors and other fetch failures
+      let errorMessage = 'Network error';
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorMessage = 'Unable to connect to server. Please check if the backend is running.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      console.error('API request error:', error);
       return {
         success: false,
-        message: error.message || 'Network error',
+        message: errorMessage,
       };
     }
   }

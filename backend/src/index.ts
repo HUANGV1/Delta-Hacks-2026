@@ -43,6 +43,24 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'StepPal API is running', timestamp: new Date().toISOString() });
 });
 
+// 404 handler
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ 
+    success: false, 
+    message: `Route ${req.method} ${req.path} not found` 
+  });
+});
+
+// Global error handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'An unexpected error occurred',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
 // WebSocket connection for real-time updates
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);

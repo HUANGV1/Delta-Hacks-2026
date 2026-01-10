@@ -19,20 +19,28 @@ import { format, addDays } from 'date-fns';
 // @access  Private
 export const getGameState = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    let gameState = await GameState.findOne({ userId: req.userId });
+    const userId = parseInt(req.userId || '0');
+    const gameStateRow = GameState.findByUserId(userId);
     
-    if (!gameState) {
+    if (!gameStateRow) {
       res.status(404).json({ success: false, message: 'Game state not found' });
       return;
     }
+
+    let gameState = GameState.toAPIFormat(gameStateRow);
 
     // Update mood based on mood points
     gameState.pet.mood = calculateMood(gameState.pet.moodPoints);
     
     // Update mining efficiency based on stage
-    gameState.pet.miningEfficiency = MINING_EFFICIENCY[gameState.pet.stage];
+    const stage = gameState.pet.stage as keyof typeof MINING_EFFICIENCY;
+    gameState.pet.miningEfficiency = MINING_EFFICIENCY[stage];
     
-    await gameState.save();
+    // Save updates
+    GameState.update(userId, {
+      pet_mood: gameState.pet.mood,
+      pet_mining_efficiency: gameState.pet.miningEfficiency,
+    });
 
     res.json({ success: true, gameState });
   } catch (error: any) {
@@ -47,27 +55,29 @@ export const getGameState = async (req: AuthRequest, res: Response): Promise<voi
 export const initializeGame = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { petName, petType } = req.body;
+    const userId = parseInt(req.userId || '0');
     
-    let gameState = await GameState.findOne({ userId: req.userId });
+    let gameStateRow = GameState.findByUserId(userId);
     
-    if (!gameState) {
+    if (!gameStateRow) {
       res.status(404).json({ success: false, message: 'Game state not found' });
       return;
     }
 
-    if (gameState.initialized) {
+    if (gameStateRow.initialized === 1) {
       res.status(400).json({ success: false, message: 'Game already initialized' });
       return;
     }
 
-    gameState.pet.name = petName || 'Pet';
-    gameState.pet.type = petType || 'phoenix';
-    gameState.initialized = true;
-    gameState.lastUpdateTime = Date.now();
+    GameState.update(userId, {
+      pet_name: petName || 'Pet',
+      pet_type: petType || 'phoenix',
+      initialized: 1,
+      last_update_time: Date.now(),
+    });
 
-    await gameState.save();
-
-    res.json({ success: true, gameState });
+    const updated = GameState.findByUserId(userId)!;
+    res.json({ success: true, gameState: GameState.toAPIFormat(updated) });
   } catch (error: any) {
     console.error('Initialize game error:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error' });
@@ -80,35 +90,44 @@ export const initializeGame = async (req: AuthRequest, res: Response): Promise<v
 export const addSteps = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { steps } = req.body;
+    const userId = parseInt(req.userId || '0');
     
     if (!steps || steps < 0 || steps > DAILY_STEP_CAP) {
       res.status(400).json({ success: false, message: 'Invalid step count' });
       return;
     }
 
-    const gameState = await GameState.findOne({ userId: req.userId });
-    if (!gameState) {
+    const gameStateRow = GameState.findByUserId(userId);
+    if (!gameStateRow) {
       res.status(404).json({ success: false, message: 'Game state not found' });
       return;
     }
 
+    let gameState = GameState.toAPIFormat(gameStateRow);
     const today = format(new Date(), 'yyyy-MM-dd');
     const isToday = gameState.stats.lastStepUpdate === today;
 
     // Update step history
-    let stepHistory = await StepHistory.findOne({ userId: req.userId, date: today });
+    let stepHistory = StepHistory.findByUserIdAndDate(userId, today);
     if (!stepHistory) {
-      stepHistory = await StepHistory.create({
-        userId: req.userId!,
+      stepHistory = StepHistory.create({
+        user_id: userId,
         date: today,
         steps: 0,
+        calories: 0,
+        distance: 0,
       });
     }
 
     // Add steps
     const newSteps = isToday ? steps : Math.min(steps, DAILY_STEP_CAP);
-    stepHistory.steps += newSteps;
-    await stepHistory.save();
+    StepHistory.upsert({
+      user_id: userId,
+      date: today,
+      steps: stepHistory.steps + newSteps,
+      calories: stepHistory.calories + (newSteps * 0.04),
+      distance: stepHistory.distance + (newSteps * 0.0008),
+    });
 
     // Update game state
     if (isToday) {
@@ -155,7 +174,7 @@ export const addSteps = async (req: AuthRequest, res: Response): Promise<void> =
     gameState.coins.pendingReward += coinsEarned;
 
     // Update mining history
-    const miningEntry = gameState.coins.miningHistory.find(m => m.date === today);
+    const miningEntry = gameState.coins.miningHistory.find((m: { date: string; amount: number }) => m.date === today);
     if (miningEntry) {
       miningEntry.amount += coinsEarned;
     } else {
@@ -179,15 +198,36 @@ export const addSteps = async (req: AuthRequest, res: Response): Promise<void> =
     gameState.stats.stepsThisMonth += newSteps;
 
     // Update daily history
-    const dailyEntry = gameState.stats.dailyHistory.find(d => d.date === today);
+    const dailyEntry = gameState.stats.dailyHistory.find((d: { date: string; steps: number }) => d.date === today);
     if (dailyEntry) {
       dailyEntry.steps = gameState.stats.stepsToday;
     } else {
       gameState.stats.dailyHistory.push({ date: today, steps: gameState.stats.stepsToday });
     }
 
-    gameState.lastUpdateTime = Date.now();
-    await gameState.save();
+    // Save to database
+    GameState.update(userId, {
+      pet_stage: gameState.pet.stage,
+      pet_level: gameState.pet.level,
+      pet_experience: gameState.pet.experience,
+      pet_experience_to_next_level: gameState.pet.experienceToNextLevel,
+      pet_mood: gameState.pet.mood,
+      pet_mood_points: gameState.pet.moodPoints,
+      pet_total_steps_all_time: gameState.pet.totalStepsAllTime,
+      pet_mining_efficiency: gameState.pet.miningEfficiency,
+      pet_evolution_animation: gameState.pet.evolutionAnimation ? 1 : 0,
+      stats_steps_today: gameState.stats.stepsToday,
+      stats_steps_this_week: gameState.stats.stepsThisWeek,
+      stats_steps_this_month: gameState.stats.stepsThisMonth,
+      stats_last_step_update: gameState.stats.lastStepUpdate,
+      stats_streak: gameState.stats.streak,
+      stats_longest_streak: gameState.stats.longestStreak,
+      stats_last_active_date: gameState.stats.lastActiveDate,
+      stats_daily_history: JSON.stringify(gameState.stats.dailyHistory),
+      coins_pending_reward: gameState.coins.pendingReward,
+      coins_mining_history: JSON.stringify(gameState.coins.miningHistory),
+      last_update_time: Date.now(),
+    });
 
     res.json({ success: true, gameState });
   } catch (error: any) {
@@ -201,21 +241,25 @@ export const addSteps = async (req: AuthRequest, res: Response): Promise<void> =
 // @access  Private
 export const claimCoins = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const gameState = await GameState.findOne({ userId: req.userId });
-    if (!gameState) {
+    const userId = parseInt(req.userId || '0');
+    const gameStateRow = GameState.findByUserId(userId);
+    if (!gameStateRow) {
       res.status(404).json({ success: false, message: 'Game state not found' });
       return;
     }
 
+    const gameState = GameState.toAPIFormat(gameStateRow);
     const claimed = Math.floor(gameState.coins.pendingReward);
-    gameState.coins.balance += claimed;
-    gameState.coins.totalEarned += claimed;
-    gameState.coins.pendingReward = 0;
-    gameState.coins.lastClaimTime = Date.now();
+    
+    GameState.update(userId, {
+      coins_balance: gameState.coins.balance + claimed,
+      coins_total_earned: gameState.coins.totalEarned + claimed,
+      coins_pending_reward: 0,
+      coins_last_claim_time: Date.now(),
+    });
 
-    await gameState.save();
-
-    res.json({ success: true, coinsClaimed: claimed, gameState });
+    const updated = GameState.findByUserId(userId)!;
+    res.json({ success: true, coinsClaimed: claimed, gameState: GameState.toAPIFormat(updated) });
   } catch (error: any) {
     console.error('Claim coins error:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error' });
@@ -228,9 +272,10 @@ export const claimCoins = async (req: AuthRequest, res: Response): Promise<void>
 export const petCare = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { action } = req.body; // 'feed', 'play', 'heal', 'boost'
+    const userId = parseInt(req.userId || '0');
     
-    const gameState = await GameState.findOne({ userId: req.userId });
-    if (!gameState) {
+    const gameStateRow = GameState.findByUserId(userId);
+    if (!gameStateRow) {
       res.status(404).json({ success: false, message: 'Game state not found' });
       return;
     }
@@ -240,6 +285,8 @@ export const petCare = async (req: AuthRequest, res: Response): Promise<void> =>
       res.status(400).json({ success: false, message: 'Invalid care action' });
       return;
     }
+
+    let gameState = GameState.toAPIFormat(gameStateRow);
 
     if (gameState.coins.balance < cost) {
       res.status(400).json({ success: false, message: 'Insufficient coins' });
@@ -275,10 +322,22 @@ export const petCare = async (req: AuthRequest, res: Response): Promise<void> =>
     gameState.pet.moodPoints = Math.min(100, avgStat);
     gameState.pet.mood = calculateMood(gameState.pet.moodPoints);
 
-    gameState.lastUpdateTime = Date.now();
-    await gameState.save();
+    // Save to database
+    GameState.update(userId, {
+      coins_balance: gameState.coins.balance,
+      pet_hunger: gameState.pet.hunger,
+      pet_energy: gameState.pet.energy,
+      pet_happiness: gameState.pet.happiness,
+      pet_health: gameState.pet.health,
+      pet_mood_points: gameState.pet.moodPoints,
+      pet_mood: gameState.pet.mood,
+      pet_last_fed_time: gameState.pet.lastFedTime,
+      pet_last_played_time: gameState.pet.lastPlayedTime,
+      last_update_time: Date.now(),
+    });
 
-    res.json({ success: true, gameState });
+    const updated = GameState.findByUserId(userId)!;
+    res.json({ success: true, gameState: GameState.toAPIFormat(updated) });
   } catch (error: any) {
     console.error('Pet care error:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error' });
@@ -290,25 +349,27 @@ export const petCare = async (req: AuthRequest, res: Response): Promise<void> =>
 // @access  Private
 export const hatchEgg = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const gameState = await GameState.findOne({ userId: req.userId });
-    if (!gameState) {
+    const userId = parseInt(req.userId || '0');
+    const gameStateRow = GameState.findByUserId(userId);
+    if (!gameStateRow) {
       res.status(404).json({ success: false, message: 'Game state not found' });
       return;
     }
 
-    if (gameState.pet.stage !== 'egg') {
+    if (gameStateRow.pet_stage !== 'egg') {
       res.status(400).json({ success: false, message: 'Pet is not an egg' });
       return;
     }
 
-    gameState.pet.stage = 'baby';
-    gameState.pet.hatched = true;
-    gameState.pet.miningEfficiency = MINING_EFFICIENCY.baby;
-    gameState.lastUpdateTime = Date.now();
+    GameState.update(userId, {
+      pet_stage: 'baby',
+      pet_hatched: 1,
+      pet_mining_efficiency: MINING_EFFICIENCY.baby,
+      last_update_time: Date.now(),
+    });
 
-    await gameState.save();
-
-    res.json({ success: true, gameState });
+    const updated = GameState.findByUserId(userId)!;
+    res.json({ success: true, gameState: GameState.toAPIFormat(updated) });
   } catch (error: any) {
     console.error('Hatch egg error:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error' });
@@ -321,6 +382,7 @@ export const hatchEgg = async (req: AuthRequest, res: Response): Promise<void> =
 export const updateEnvironment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { environment } = req.body;
+    const userId = parseInt(req.userId || '0');
     
     const validEnvironments = ['meadow', 'space', 'cozy', 'beach'];
     if (!validEnvironments.includes(environment)) {
@@ -328,17 +390,19 @@ export const updateEnvironment = async (req: AuthRequest, res: Response): Promis
       return;
     }
 
-    const gameState = await GameState.findOne({ userId: req.userId });
-    if (!gameState) {
+    const gameStateRow = GameState.findByUserId(userId);
+    if (!gameStateRow) {
       res.status(404).json({ success: false, message: 'Game state not found' });
       return;
     }
 
-    gameState.pet.environment = environment;
-    gameState.lastUpdateTime = Date.now();
-    await gameState.save();
+    GameState.update(userId, {
+      pet_environment: environment,
+      last_update_time: Date.now(),
+    });
 
-    res.json({ success: true, gameState });
+    const updated = GameState.findByUserId(userId)!;
+    res.json({ success: true, gameState: GameState.toAPIFormat(updated) });
   } catch (error: any) {
     console.error('Update environment error:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error' });
@@ -350,29 +414,32 @@ export const updateEnvironment = async (req: AuthRequest, res: Response): Promis
 // @access  Private
 export const updateSettings = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const gameState = await GameState.findOne({ userId: req.userId });
-    if (!gameState) {
+    const userId = parseInt(req.userId || '0');
+    const gameStateRow = GameState.findByUserId(userId);
+    if (!gameStateRow) {
       res.status(404).json({ success: false, message: 'Game state not found' });
       return;
     }
 
     const { notifications, soundEffects, haptics, theme, stepSource, language, dailyGoal } = req.body;
+    const updates: any = {};
 
-    if (notifications !== undefined) gameState.settings.notifications = notifications;
-    if (soundEffects !== undefined) gameState.settings.soundEffects = soundEffects;
-    if (haptics !== undefined) gameState.settings.haptics = haptics;
-    if (theme) gameState.settings.theme = theme;
-    if (stepSource) gameState.settings.stepSource = stepSource;
-    if (language) gameState.settings.language = language;
-    if (dailyGoal) gameState.stats.dailyGoal = dailyGoal;
+    if (notifications !== undefined) updates.settings_notifications = notifications ? 1 : 0;
+    if (soundEffects !== undefined) updates.settings_sound_effects = soundEffects ? 1 : 0;
+    if (haptics !== undefined) updates.settings_haptics = haptics ? 1 : 0;
+    if (theme) updates.settings_theme = theme;
+    if (stepSource) updates.settings_step_source = stepSource;
+    if (language) updates.settings_language = language;
+    if (dailyGoal) updates.stats_daily_goal = dailyGoal;
 
-    gameState.lastUpdateTime = Date.now();
-    await gameState.save();
+    updates.last_update_time = Date.now();
 
-    res.json({ success: true, gameState });
+    GameState.update(userId, updates);
+
+    const updated = GameState.findByUserId(userId)!;
+    res.json({ success: true, gameState: GameState.toAPIFormat(updated) });
   } catch (error: any) {
     console.error('Update settings error:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
 };
-

@@ -4,12 +4,13 @@ import { validationResult } from 'express-validator';
 import User from '../models/User';
 import GameState from '../models/GameState';
 import { AuthRequest } from '../middleware/auth';
+import { initializeAchievements } from './achievementController';
 
 // Generate JWT Token
-const generateToken = (id: string): string => {
+const generateToken = (id: number): string => {
   const secret = process.env.JWT_SECRET || 'fallback-secret';
   const expiresIn = process.env.JWT_EXPIRE || '7d';
-  return jwt.sign({ id }, secret, { expiresIn } as jwt.SignOptions);
+  return jwt.sign({ id: id.toString() }, secret, { expiresIn } as jwt.SignOptions);
 };
 
 // @desc    Register new user
@@ -19,16 +20,40 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessages = errors.array().map(err => ({
+        msg: err.msg,
+        param: err.type === 'field' ? err.path : undefined,
+      }));
+      res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed',
+        errors: errorMessages 
+      });
       return;
     }
 
     const { username, email, password } = req.body;
 
+    // Validate required fields
+    if (!username || !email || !password) {
+      res.status(400).json({ 
+        success: false, 
+        message: 'Username, email, and password are required' 
+      });
+      return;
+    }
+
     // Check if user exists
-    const userExists = await User.findOne({ $or: [{ email }, { username }] });
-    if (userExists) {
-      res.status(400).json({ success: false, message: 'User already exists' });
+    const existingEmail = User.findByEmail(email);
+    const existingUsername = User.findByUsername(username);
+    
+    if (existingEmail) {
+      res.status(400).json({ success: false, message: 'An account with this email already exists' });
+      return;
+    }
+    
+    if (existingUsername) {
+      res.status(400).json({ success: false, message: 'This username is already taken' });
       return;
     }
 
@@ -39,9 +64,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       password,
     });
 
+    // Initialize achievements
+    initializeAchievements(user.id);
+
     // Initialize game state
-    const gameState = await GameState.create({
-      userId: user._id,
+    const gameState = GameState.create(user.id, {
       pet: {
         name: 'Pet',
         type: 'phoenix',
@@ -95,22 +122,26 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         language: 'en',
       },
       initialized: false,
-      lastUpdateTime: Date.now(),
     });
 
     res.status(201).json({
       success: true,
-      token: generateToken(user._id.toString()),
+      token: generateToken(user.id),
       user: {
-        id: user._id,
+        id: user.id,
         username: user.username,
         email: user.email,
       },
-      gameState,
+      gameState: GameState.toAPIFormat(gameState),
     });
   } catch (error: any) {
     console.error('Register error:', error);
-    res.status(500).json({ success: false, message: error.message || 'Server error' });
+    const errorMessage = error.message || 'An unexpected error occurred during registration';
+    res.status(500).json({ 
+      success: false, 
+      message: errorMessage,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
   }
 };
 
@@ -121,21 +152,38 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessages = errors.array().map(err => ({
+        msg: err.msg,
+        param: err.type === 'field' ? err.path : undefined,
+      }));
+      res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed',
+        errors: errorMessages 
+      });
       return;
     }
 
     const { email, password } = req.body;
 
+    // Validate required fields
+    if (!email || !password) {
+      res.status(400).json({ 
+        success: false, 
+        message: 'Email and password are required' 
+      });
+      return;
+    }
+
     // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    const user = User.findByEmail(email);
     if (!user) {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
       return;
     }
 
     // Check password
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await User.comparePassword(password, user.password);
     if (!isMatch) {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
       return;
@@ -143,16 +191,21 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     res.json({
       success: true,
-      token: generateToken(user._id.toString()),
+      token: generateToken(user.id),
       user: {
-        id: user._id,
+        id: user.id,
         username: user.username,
         email: user.email,
       },
     });
   } catch (error: any) {
     console.error('Login error:', error);
-    res.status(500).json({ success: false, message: error.message || 'Server error' });
+    const errorMessage = error.message || 'An unexpected error occurred during login';
+    res.status(500).json({ 
+      success: false, 
+      message: errorMessage,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
   }
 };
 
@@ -161,11 +214,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 // @access  Private
 export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const user = await User.findById(req.userId).select('-password');
-    res.json({ success: true, user });
+    const userId = parseInt(req.userId || '0');
+    const user = User.findById(userId);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+    res.json({ success: true, user: { id: user.id, username: user.username, email: user.email } });
   } catch (error: any) {
     console.error('Get me error:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
 };
-

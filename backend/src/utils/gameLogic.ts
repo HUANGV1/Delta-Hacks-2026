@@ -2,6 +2,8 @@
 
 export type PetStage = 'egg' | 'baby' | 'child' | 'teen' | 'adult' | 'elder' | 'legendary';
 export type PetMood = 'ecstatic' | 'happy' | 'content' | 'neutral' | 'sad' | 'neglected';
+export type EnvironmentType = 'meadow' | 'space' | 'cozy' | 'beach';
+export type PetType = 'phoenix' | 'dragon' | 'spirit' | 'nature';
 
 export const EVOLUTION_REQUIREMENTS: Record<PetStage, { level: number; totalSteps: number }> = {
   egg: { level: 0, totalSteps: 0 },

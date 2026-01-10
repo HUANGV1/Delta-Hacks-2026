@@ -1,58 +1,56 @@
-import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { getDB } from '../config/database';
 
-export interface IUser extends Document {
+export interface IUser {
+  id: number;
   username: string;
   email: string;
   password: string;
-  createdAt: Date;
-  updatedAt: Date;
-  comparePassword(candidatePassword: string): Promise<boolean>;
+  created_at: string;
+  updated_at: string;
 }
 
-const UserSchema = new Schema<IUser>(
-  {
-    username: {
-      type: String,
-      required: [true, 'Username is required'],
-      unique: true,
-      trim: true,
-      minlength: [3, 'Username must be at least 3 characters'],
-      maxlength: [20, 'Username cannot exceed 20 characters'],
-    },
-    email: {
-      type: String,
-      required: [true, 'Email is required'],
-      unique: true,
-      lowercase: true,
-      trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
-    },
-    password: {
-      type: String,
-      required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
-      select: false, // Don't return password by default
-    },
-  },
-  {
-    timestamps: true,
+export class User {
+  static async create(data: { username: string; email: string; password: string }): Promise<IUser> {
+    const db = getDB();
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    
+    const result = db.prepare(`
+      INSERT INTO users (username, email, password)
+      VALUES (?, ?, ?)
+    `).run(data.username, data.email, hashedPassword);
+    
+    return this.findById(result.lastInsertRowid as number)!;
   }
-);
 
-// Hash password before saving
-UserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
+  static findById(id: number): IUser | null {
+    const db = getDB();
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as IUser | null;
+  }
 
-// Compare password method
-UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
+  static findByEmail(email: string): IUser | null {
+    const db = getDB();
+    return db.prepare('SELECT * FROM users WHERE email = ?').get(email) as IUser | null;
+  }
 
-export default mongoose.model<IUser>('User', UserSchema);
+  static findByUsername(username: string): IUser | null {
+    const db = getDB();
+    return db.prepare('SELECT * FROM users WHERE username = ?').get(username) as IUser | null;
+  }
 
+  static findOne(condition: { email?: string; username?: string }): IUser | null {
+    if (condition.email) {
+      return this.findByEmail(condition.email);
+    }
+    if (condition.username) {
+      return this.findByUsername(condition.username);
+    }
+    return null;
+  }
+
+  static async comparePassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
+    return await bcrypt.compare(plainPassword, hashedPassword);
+  }
+}
+
+export default User;

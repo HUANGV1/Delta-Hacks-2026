@@ -25,47 +25,46 @@ const ACHIEVEMENT_DEFINITIONS = [
 ];
 
 // Initialize achievements for a user
-export const initializeAchievements = async (userId: string): Promise<void> => {
+export const initializeAchievements = (userId: number): void => {
   for (const def of ACHIEVEMENT_DEFINITIONS) {
-    await Achievement.findOneAndUpdate(
-      { userId, achievementId: def.id },
-      {
-        userId,
-        achievementId: def.id,
-        name: def.name,
-        description: def.description,
-        icon: def.icon,
-        target: def.target,
-        progress: 0,
-      },
-      { upsert: true, new: true }
-    );
+    Achievement.upsert({
+      user_id: userId,
+      achievement_id: def.id,
+      name: def.name,
+      description: def.description,
+      icon: def.icon,
+      target: def.target,
+      progress: 0,
+      unlocked_at: null,
+    });
   }
 };
 
 // Check and update achievements
-export const checkAchievements = async (userId: string): Promise<string[]> => {
-  const gameState = await GameState.findOne({ userId });
-  if (!gameState) return [];
+export const checkAchievements = (userId: number): string[] => {
+  const gameStateRow = GameState.findByUserId(userId);
+  if (!gameStateRow) return [];
 
+  const gameState = GameState.toAPIFormat(gameStateRow);
   const unlocked: string[] = [];
 
   for (const def of ACHIEVEMENT_DEFINITIONS) {
-    let achievement = await Achievement.findOne({ userId, achievementId: def.id });
+    let achievement = Achievement.findByUserIdAndAchievementId(userId, def.id);
     
     if (!achievement) {
-      achievement = await Achievement.create({
-        userId,
-        achievementId: def.id,
+      achievement = Achievement.create({
+        user_id: userId,
+        achievement_id: def.id,
         name: def.name,
         description: def.description,
         icon: def.icon,
         target: def.target,
         progress: 0,
+        unlocked_at: null,
       });
     }
 
-    if (achievement.unlockedAt) continue; // Already unlocked
+    if (achievement.unlocked_at) continue; // Already unlocked
 
     // Calculate progress based on achievement type
     let progress = 0;
@@ -90,14 +89,16 @@ export const checkAchievements = async (userId: string): Promise<string[]> => {
       progress = gameState.pet.level;
     }
 
-    achievement.progress = progress;
+    const unlockedAt = progress >= def.target && !achievement.unlocked_at ? Date.now() : achievement.unlocked_at;
 
-    if (progress >= def.target && !achievement.unlockedAt) {
-      achievement.unlockedAt = Date.now();
+    Achievement.update(achievement.id, {
+      progress,
+      unlocked_at: unlockedAt,
+    });
+
+    if (unlockedAt && !achievement.unlocked_at) {
       unlocked.push(def.id);
     }
-
-    await achievement.save();
   }
 
   return unlocked;
@@ -108,22 +109,24 @@ export const checkAchievements = async (userId: string): Promise<string[]> => {
 // @access  Private
 export const getAchievements = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    let achievements = await Achievement.find({ userId: req.userId });
+    const userId = parseInt(req.userId || '0');
+    let achievements = Achievement.findByUserId(userId);
 
     // Initialize if none exist
     if (achievements.length === 0) {
-      await initializeAchievements(req.userId!);
-      achievements = await Achievement.find({ userId: req.userId });
+      initializeAchievements(userId);
+      achievements = Achievement.findByUserId(userId);
     }
 
     // Update achievements based on current game state
-    await checkAchievements(req.userId!);
-    achievements = await Achievement.find({ userId: req.userId });
+    checkAchievements(userId);
+    achievements = Achievement.findByUserId(userId);
 
-    res.json({ success: true, achievements });
+    const formatted = achievements.map(a => Achievement.toAPIFormat(a));
+
+    res.json({ success: true, achievements: formatted });
   } catch (error: any) {
     console.error('Get achievements error:', error);
     res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
 };
-

@@ -60,10 +60,21 @@ export function Auth({ onAuthSuccess }: AuthProps) {
               setError('Failed to load game state');
             }
           } else {
-            setError('Failed to load game state');
+            setError(gameStateResponse.message || 'Failed to load game state');
           }
         } else {
-          setError(response.message || 'Login failed');
+          // Handle validation errors
+          let errorMessage = response.message || 'Login failed';
+          if (response.errors && Array.isArray(response.errors) && response.errors.length > 0) {
+            const errorMessages = response.errors.map((err: any) => {
+              if (typeof err === 'string') return err;
+              if (err.msg) return err.msg;
+              if (err.message) return err.message;
+              return JSON.stringify(err);
+            });
+            errorMessage = errorMessages.join('. ');
+          }
+          setError(errorMessage);
         }
       } else {
         // Register
@@ -102,7 +113,18 @@ export function Auth({ onAuthSuccess }: AuthProps) {
             setError('Failed to initialize game state');
           }
         } else {
-          setError(response.message || 'Registration failed');
+          // Handle validation errors
+          let errorMessage = response.message || 'Registration failed';
+          if (response.errors && Array.isArray(response.errors) && response.errors.length > 0) {
+            const errorMessages = response.errors.map((err: any) => {
+              if (typeof err === 'string') return err;
+              if (err.msg) return err.msg;
+              if (err.message) return err.message;
+              return JSON.stringify(err);
+            });
+            errorMessage = errorMessages.join('. ');
+          }
+          setError(errorMessage);
         }
       }
     } catch (err: any) {
