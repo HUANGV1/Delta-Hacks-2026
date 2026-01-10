@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useGameStore } from '../store';
+import apiService from '../services/api';
 import type { PetType } from '../types';
 
 const petTypes: { id: PetType; name: string; icon: string; description: string; color: string }[] = [
@@ -14,12 +15,37 @@ export function Onboarding() {
   const [name, setName] = useState('');
   const [selectedType, setSelectedType] = useState<PetType>('phoenix');
   const [step, setStep] = useState(0);
-  const initializeGame = useGameStore((s) => s.initializeGame);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const setGameState = useGameStore((s) => s.setGameState);
+  const setInitialized = useGameStore((s) => s.setInitialized);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
-      initializeGame(name.trim(), selectedType);
+    if (!name.trim() || loading) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Call backend API to initialize game
+      const response = await apiService.initializeGame(name.trim(), selectedType);
+      
+      if (response.success && response.data) {
+        const gameState = (response.data as any).gameState;
+        if (gameState) {
+          setGameState(gameState);
+          setInitialized(true);
+        } else {
+          setError('Failed to initialize game');
+        }
+      } else {
+        setError(response.message || 'Failed to initialize game');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -191,16 +217,33 @@ export function Onboarding() {
                   maxLength={16}
                   className="name-input"
                   autoFocus
+                  disabled={loading}
                 />
+
+                {error && (
+                  <motion.div
+                    className="onboarding-error"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      color: '#ef4444',
+                      fontSize: '0.875rem',
+                      textAlign: 'center',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    {error}
+                  </motion.div>
+                )}
 
                 <motion.button
                   type="submit"
                   className="start-button"
-                  disabled={!name.trim()}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  disabled={!name.trim() || loading}
+                  whileHover={{ scale: loading ? 1 : 1.02 }}
+                  whileTap={{ scale: loading ? 1 : 0.98 }}
                 >
-                  Begin Journey
+                  {loading ? 'Starting...' : 'Begin Journey'}
                 </motion.button>
               </form>
             )}

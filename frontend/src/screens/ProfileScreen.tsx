@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store';
+import apiService from '../services/api';
 import { STAGE_NAMES, CARE_COSTS } from '../types';
 import {
   AppleIcon,
@@ -16,7 +17,8 @@ import {
   BellIcon,
   SpeakerIcon,
   VibrateIcon,
-  InfoIcon
+  InfoIcon,
+  LogoutIcon
 } from '../components/Icons';
 
 export function ProfileScreen() {
@@ -32,7 +34,17 @@ export function ProfileScreen() {
   const resetGame = useGameStore((s) => s.resetGame);
   
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'pet' | 'settings'>('pet');
+
+  const handleLogout = () => {
+    // Clear API token
+    apiService.logout();
+    // Clear local storage (Zustand persist)
+    localStorage.removeItem('steppal-storage');
+    // Reload page to reset app state
+    window.location.reload();
+  };
 
   const unlockedAchievements = stats.achievements.filter(a => a.unlockedAt).length;
   const totalAchievements = stats.achievements.length;
@@ -310,6 +322,34 @@ export function ProfileScreen() {
                 </div>
               </section>
 
+              {/* Account */}
+              <section className="settings-section">
+                <h3 className="section-title">Account</h3>
+                <motion.button
+                  className="logout-btn"
+                  onClick={() => setShowLogoutConfirm(true)}
+                  whileTap={{ scale: 0.98 }}
+                  style={{
+                    width: '100%',
+                    padding: '14px 20px',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9375rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <LogoutIcon size={20} />
+                  Log Out
+                </motion.button>
+              </section>
+
               {/* Danger Zone */}
               <section className="settings-section danger">
                 <h3 className="section-title danger">Danger Zone</h3>
@@ -363,6 +403,48 @@ export function ProfileScreen() {
                   }}
                 >
                   Reset Everything
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Logout Confirmation Modal */}
+      <AnimatePresence>
+        {showLogoutConfirm && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowLogoutConfirm(false)}
+          >
+            <motion.div
+              className="modal-content"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-icon"><LogoutIcon size={48} color="#8b5cf6" /></div>
+              <h3 className="modal-title">Log Out?</h3>
+              <p className="modal-text">
+                You can log back in anytime. Your data is saved on the server.
+              </p>
+              <div className="modal-actions">
+                <button 
+                  className="modal-btn cancel"
+                  onClick={() => setShowLogoutConfirm(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="modal-btn primary"
+                  onClick={handleLogout}
+                  style={{ background: 'var(--accent)' }}
+                >
+                  Log Out
                 </button>
               </div>
             </motion.div>
