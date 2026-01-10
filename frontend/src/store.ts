@@ -16,6 +16,8 @@ import type { GameState, PetStage, PetMood, EnvironmentType, ScreenType, Challen
 
 interface GameStore extends GameState {
   // Actions
+  setGameState: (gameState: Partial<GameState>) => void;
+  setInitialized: (initialized: boolean) => void;
   initializeGame: (petName: string, petType: PetType) => void;
   addSteps: (steps: number) => void;
   claimCoins: () => void;
@@ -219,6 +221,17 @@ export const useGameStore = create<GameStore>()(
   persist(
     (set, get) => ({
       ...getInitialState(),
+
+      setGameState: (gameState: Partial<GameState>) => {
+        set((state) => ({
+          ...state,
+          ...gameState,
+        }));
+      },
+
+      setInitialized: (initialized: boolean) => {
+        set({ initialized });
+      },
 
       initializeGame: (petName: string, petType: PetType) => {
         set({
