@@ -4,4 +4,6 @@ export { EvolutionScreen } from './EvolutionScreen';
 export { RewardsScreen } from './RewardsScreen';
 export { ChallengesScreen } from './ChallengesScreen';
 export { ProfileScreen } from './ProfileScreen';
+export { MarketplaceScreen } from './MarketplaceScreen';
+export { LeaderboardScreen } from './LeaderboardScreen';
 

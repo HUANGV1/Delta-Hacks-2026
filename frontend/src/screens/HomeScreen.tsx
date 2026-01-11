@@ -3,12 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store';
 import { Pet3D } from '../components/Pet3D';
 import { CARE_COSTS } from '../types';
-import { 
-  FireIcon, 
-  CoinsIcon, 
-  FootprintsIcon, 
-  TargetIcon, 
-  BoltIcon, 
+import {
+  FireIcon,
+  CoinsIcon,
+  FootprintsIcon,
+  TargetIcon,
+  BoltIcon,
   HeartIcon,
   LeafIcon,
   RocketIcon,
@@ -16,6 +16,7 @@ import {
   BeachIcon,
   AppleIcon,
   GamepadIcon,
+  BoxIcon,
   ZapIcon
 } from '../components/Icons';
 import type { EnvironmentType } from '../types';
@@ -31,37 +32,155 @@ export function HomeScreen() {
   const pet = useGameStore((s) => s.pet);
   const stats = useGameStore((s) => s.stats);
   const coins = useGameStore((s) => s.coins);
-  const hatchEgg = useGameStore((s) => s.hatchEgg);
-  const setEnvironment = useGameStore((s) => s.setEnvironment);
-  const addSteps = useGameStore((s) => s.addSteps);
-  const claimCoins = useGameStore((s) => s.claimCoins);
-  const feedPet = useGameStore((s) => s.feedPet);
-  const playWithPet = useGameStore((s) => s.playWithPet);
-  
+  const crates = useGameStore((s) => s.crates);
+  const setGameState = useGameStore((s) => s.setGameState);
+  const setScreen = useGameStore((s) => s.setScreen);
+
   const [showEnvPicker, setShowEnvPicker] = useState(false);
   const [stepInput, setStepInput] = useState('');
   const [isDemo, setIsDemo] = useState(false);
   const [showCareMenu, setShowCareMenu] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [crateReward, setCrateReward] = useState<{ amount: number; rarity: string } | null>(null);
 
-  useEffect(() => {
-    if (!isDemo) return;
-    const interval = setInterval(() => {
-      addSteps(Math.floor(Math.random() * 100) + 50);
-    }, 600);
-    return () => clearInterval(interval);
-  }, [isDemo, addSteps]);
+  // Remove unused callApi helper
 
-  const handleAddSteps = () => {
+  const handleAddSteps = async () => {
     const steps = parseInt(stepInput);
-    if (!isNaN(steps) && steps > 0) {
-      addSteps(steps);
+    if (isNaN(steps) || steps <= 0 || isLoading) return;
+
+    setIsLoading(true);
+    try {
+      const apiService = (await import('../services/api')).default;
+      const response = await apiService.addSteps(steps);
+      if (response.success && response.data) {
+        const gameState = (response.data as any).gameState;
+        if (gameState) {
+          setGameState(gameState);
+        }
+      }
       setStepInput('');
+    } catch (error) {
+      console.error('Failed to add steps:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleClaimCoins = async () => {
+    if (coins.pendingReward < 1 || isLoading) return;
+
+    setIsLoading(true);
+    try {
+      const apiService = (await import('../services/api')).default;
+      const response = await apiService.claimCoins();
+      if (response.success && response.data) {
+        const gameState = (response.data as any).gameState;
+        if (gameState) {
+          setGameState(gameState);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to claim coins:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenCrate = async () => {
+    if ((crates?.available || 0) < 1 || isLoading) return;
+
+    setIsLoading(true);
+    try {
+      const apiService = (await import('../services/api')).default;
+      const response = await apiService.openCrate();
+      if (response.success && response.data) {
+        const data = response.data as any;
+        if (data.gameState) {
+          setGameState(data.gameState);
+        }
+        if (data.reward) {
+          setCrateReward(data.reward);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to open crate:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleHatchEgg = async () => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    try {
+      const apiService = (await import('../services/api')).default;
+      const response = await apiService.hatchEgg();
+      if (response.success && response.data) {
+        const gameState = (response.data as any).gameState;
+        if (gameState) {
+          setGameState(gameState);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to hatch egg:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePetCare = async (action: 'feed' | 'play' | 'heal' | 'boost') => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    setShowCareMenu(false);
+    try {
+      const apiService = (await import('../services/api')).default;
+      const response = await apiService.petCare(action);
+      if (response.success && response.data) {
+        const gameState = (response.data as any).gameState;
+        if (gameState) {
+          setGameState(gameState);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to care for pet:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSetEnvironment = async (env: EnvironmentType) => {
+    setShowEnvPicker(false);
+    try {
+      const apiService = (await import('../services/api')).default;
+      await apiService.updateEnvironment(env);
+      setGameState({ pet: { ...pet, environment: env } });
+    } catch (error) {
+      console.error('Failed to update environment:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!isDemo) return;
+    const interval = setInterval(async () => {
+      const apiService = (await import('../services/api')).default;
+      const response = await apiService.addSteps(Math.floor(Math.random() * 100) + 50);
+      if (response.success && response.data) {
+        const gameState = (response.data as any).gameState;
+        if (gameState) {
+          setGameState(gameState);
+        }
+      }
+    }, 600);
+    return () => clearInterval(interval);
+  }, [isDemo, setGameState]);
+
   const expPercent = (pet.experience / pet.experienceToNextLevel) * 100;
   const dailyPercent = Math.min((stats.stepsToday / stats.dailyGoal) * 100, 100);
-  
+  const cratePercent = Math.min(((crates?.stepsTowardNext || 0) / (crates?.stepsRequired || 3000)) * 100, 100);
+
   const moodColor: Record<string, string> = {
     ecstatic: '#22c55e',
     happy: '#4ade80',
@@ -87,8 +206,8 @@ export function HomeScreen() {
           <h1 className="brand-name">StepPal</h1>
         </div>
         <div className="header-right">
-          <motion.div 
-            className="header-coins" 
+          <motion.div
+            className="header-coins"
             whileTap={{ scale: 0.95 }}
           >
             <span className="coins-icon"><CoinsIcon size={18} color="#fbbf24" /></span>
@@ -105,9 +224,10 @@ export function HomeScreen() {
             mood={pet.mood}
             name={pet.name}
             environment={pet.environment}
-            onHatch={pet.stage === 'egg' ? hatchEgg : undefined}
+            onHatch={pet.stage === 'egg' ? handleHatchEgg : undefined}
+            cosmetics={pet.cosmetics}
           />
-          
+
           {/* Environment Picker */}
           <motion.button
             className="floating-btn env-btn"
@@ -118,8 +238,8 @@ export function HomeScreen() {
           </motion.button>
 
           {/* Mood Badge */}
-          <div 
-            className="floating-btn mood-badge" 
+          <div
+            className="floating-btn mood-badge"
             style={{ borderColor: moodColor[pet.mood] }}
           >
             <HeartIcon size={18} color={moodColor[pet.mood]} filled />
@@ -150,7 +270,7 @@ export function HomeScreen() {
                     <button
                       key={env.id}
                       className={`menu-item ${pet.environment === env.id ? 'active' : ''}`}
-                      onClick={() => { setEnvironment(env.id); setShowEnvPicker(false); }}
+                      onClick={() => handleSetEnvironment(env.id)}
                     >
                       <EnvIcon size={18} />
                       <span>{env.label}</span>
@@ -171,7 +291,7 @@ export function HomeScreen() {
               >
                 <button
                   className="menu-item care-item"
-                  onClick={() => { feedPet(); setShowCareMenu(false); }}
+                  onClick={() => handlePetCare('feed')}
                   disabled={coins.balance < CARE_COSTS.feed}
                 >
                   <AppleIcon size={18} />
@@ -182,7 +302,7 @@ export function HomeScreen() {
                 </button>
                 <button
                   className="menu-item care-item"
-                  onClick={() => { playWithPet(); setShowCareMenu(false); }}
+                  onClick={() => handlePetCare('play')}
                   disabled={coins.balance < CARE_COSTS.play}
                 >
                   <GamepadIcon size={18} />
@@ -202,7 +322,7 @@ export function HomeScreen() {
             <h2 className="pet-name">{pet.name}</h2>
             <span className="pet-stage">{pet.stage} • Lv.{pet.level}</span>
           </div>
-          
+
           {/* Pet Stats */}
           {pet.hatched && (
             <div className="pet-quick-stats">
@@ -264,7 +384,7 @@ export function HomeScreen() {
               <span className="progress-badge">{stats.stepsToday.toLocaleString()} / {stats.dailyGoal.toLocaleString()}</span>
             </div>
             <div className="progress-track">
-              <motion.div 
+              <motion.div
                 className="progress-fill daily"
                 animate={{ width: `${dailyPercent}%` }}
                 transition={{ duration: 0.5 }}
@@ -278,7 +398,7 @@ export function HomeScreen() {
               <span className="progress-badge secondary">Level {pet.level}</span>
             </div>
             <div className="progress-track">
-              <motion.div 
+              <motion.div
                 className="progress-fill xp"
                 animate={{ width: `${expPercent}%` }}
                 transition={{ duration: 0.5 }}
@@ -286,6 +406,8 @@ export function HomeScreen() {
             </div>
             <div className="progress-sub">{pet.experience.toLocaleString()} / {pet.experienceToNextLevel.toLocaleString()} XP</div>
           </div>
+
+
         </div>
 
         {/* Rewards Card */}
@@ -307,12 +429,59 @@ export function HomeScreen() {
           {coins.pendingReward >= 1 && (
             <motion.button
               className="claim-btn"
-              onClick={claimCoins}
+              onClick={handleClaimCoins}
               whileTap={{ scale: 0.95 }}
             >
               Claim +{Math.floor(coins.pendingReward)}
             </motion.button>
           )}
+
+          {/* Crate Section (Moved to Rewards) */}
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BoxIcon size={20} color="#8b5cf6" />
+                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#e2e8f0' }}>Crates</span>
+              </div>
+              <span className="progress-badge highlight" style={{ fontSize: '0.8rem' }}>{crates?.available || 0} Available</span>
+            </div>
+
+            <div className="progress-track" style={{ marginBottom: '8px' }}>
+              <motion.div
+                className="progress-fill crate"
+                animate={{ width: `${cratePercent}%` }}
+                transition={{ duration: 0.5 }}
+                style={{ background: '#8b5cf6' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: '#94a3b8' }}>
+              <span>{crates?.stepsTowardNext || 0} / {crates?.stepsRequired || 3000} steps</span>
+              {(crates?.available || 0) > 0 && (
+                <motion.button
+                  onClick={handleOpenCrate}
+                  whileTap={{ scale: 0.95 }}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '6px',
+                    background: '#8b5cf6',
+                    color: 'white',
+                    border: 'none',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <BoxIcon size={14} /> Open
+                </motion.button>
+              )}
+            </div>
+          </div>
+
+
         </div>
 
         {/* Step Input */}
@@ -340,10 +509,19 @@ export function HomeScreen() {
               <motion.button
                 key={amt}
                 className="quick-add-btn"
-                onClick={() => addSteps(amt)}
+                onClick={async () => {
+                  const apiService = (await import('../services/api')).default;
+                  const response = await apiService.addSteps(amt);
+                  if (response.success && response.data) {
+                    const gameState = (response.data as any).gameState;
+                    if (gameState) {
+                      setGameState(gameState);
+                    }
+                  }
+                }}
                 whileTap={{ scale: 0.95 }}
               >
-                +{amt >= 1000 ? `${amt/1000}k` : amt}
+                +{amt >= 1000 ? `${amt / 1000}k` : amt}
               </motion.button>
             ))}
           </div>
@@ -356,6 +534,62 @@ export function HomeScreen() {
           </motion.button>
         </div>
       </section>
+      {/* Crate Reward Modal */}
+      <AnimatePresence>
+        {crateReward && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100
+            }}
+            onClick={() => setCrateReward(null)}
+          >
+            <motion.div
+              className="reward-modal"
+              initial={{ scale: 0.5, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.5, y: 50 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: '#1e293b', padding: '32px', borderRadius: '24px',
+                textAlign: 'center', maxWidth: '300px', width: '90%',
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)'
+              }}
+            >
+              <div style={{ fontSize: '64px', marginBottom: '16px' }}>
+                {crateReward.rarity === 'legendary' ? '💎' :
+                  crateReward.rarity === 'epic' ? '🌟' :
+                    crateReward.rarity === 'rare' ? '💰' : '🪙'}
+              </div>
+              <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px', color: 'white' }}>
+                {crateReward.rarity === 'legendary' ? 'MEGA JACKPOT!' :
+                  crateReward.rarity === 'epic' ? 'JACKPOT!' :
+                    crateReward.rarity === 'rare' ? 'LUCKY!' : 'Crate Opened!'}
+              </h2>
+              <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
+                You found <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>{crateReward.amount} StepCoins</span>!
+              </p>
+              <motion.button
+                onClick={() => setCrateReward(null)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  background: '#fbbf24', color: 'black', border: 'none',
+                  padding: '12px 24px', borderRadius: '12px',
+                  fontWeight: 'bold', cursor: 'pointer', width: '100%'
+                }}
+              >
+                Collect
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

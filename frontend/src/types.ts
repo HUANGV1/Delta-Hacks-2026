@@ -7,7 +7,7 @@ export type EnvironmentType = 'meadow' | 'space' | 'cozy' | 'beach';
 
 export type PetType = 'phoenix' | 'dragon' | 'spirit' | 'nature';
 
-export type ScreenType = 'home' | 'activity' | 'evolution' | 'rewards' | 'challenges' | 'profile';
+export type ScreenType = 'home' | 'activity' | 'evolution' | 'rewards' | 'challenges' | 'profile' | 'marketplace' | 'leaderboard';
 
 export interface PetState {
   name: string;
@@ -32,6 +32,9 @@ export interface PetState {
   unlockables: string[];
   cosmetics: {
     accessory?: string;
+    hat?: string;
+    glasses?: string;
+    neck?: string;
     background?: string;
     trail?: string;
   };
@@ -85,11 +88,20 @@ export interface CoinState {
   miningHistory: { date: string; amount: number }[];
 }
 
+export interface CrateState {
+  available: number;
+  opened: number;
+  stepsTowardNext: number;
+  stepsRequired: number;
+}
+
 export interface GameState {
   pet: PetState;
   stats: UserStats;
   coins: CoinState;
+  crates: CrateState;
   challenges: Challenge[];
+  inventory: Item[];
   initialized: boolean;
   lastUpdateTime: number;
   currentScreen: ScreenType;
@@ -104,6 +116,16 @@ export interface Notification {
   message: string;
   timestamp: number;
   read: boolean;
+}
+
+export interface Item {
+  id: string;
+  name: string;
+  type: 'hat' | 'glasses' | 'neck' | 'misc';
+  cost: number;
+  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+  description: string;
+  acquiredAt?: number;
 }
 
 export interface AppSettings {
@@ -163,7 +185,7 @@ export const MOOD_THRESHOLDS: Record<PetMood, number> = {
 };
 
 // Step caps to prevent abuse
-export const DAILY_STEP_CAP = 30000;
+export const DAILY_STEP_CAP = 100000;
 export const HOURLY_STEP_CAP = 5000;
 export const STEPS_PER_EXPERIENCE = 10; // 10 steps = 1 XP
 export const BASE_COINS_PER_1000_STEPS = 10;

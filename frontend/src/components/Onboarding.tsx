@@ -23,14 +23,14 @@ export function Onboarding() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || loading) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       // Call backend API to initialize game
       const response = await apiService.initializeGame(name.trim(), selectedType);
-      
+
       if (response.success && response.data) {
         const gameState = (response.data as any).gameState;
         if (gameState) {
@@ -119,7 +119,7 @@ export function Onboarding() {
         />
       </div>
 
-      <motion.div 
+      <motion.div
         className="onboarding-card"
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -132,7 +132,7 @@ export function Onboarding() {
               key={i}
               className={`progress-dot ${i === step ? 'active' : ''} ${i < step ? 'completed' : ''}`}
               initial={false}
-              animate={{ 
+              animate={{
                 scale: i === step ? 1.2 : 1,
               }}
               transition={{ duration: 0.2 }}
@@ -159,9 +159,9 @@ export function Onboarding() {
                 {steps[step].emoji}
               </motion.div>
             )}
-            
+
             <h2 className="onboarding-title">{steps[step].title}</h2>
-            
+
             {steps[step].content && (
               <p className="onboarding-text">{steps[step].content}</p>
             )}
@@ -177,8 +177,8 @@ export function Onboarding() {
                       className={`pet-type-btn ${selectedType === type.id ? 'selected' : ''}`}
                       onClick={() => setSelectedType(type.id)}
                       whileTap={{ scale: 0.95 }}
-                      style={{ 
-                        '--type-color': type.color 
+                      style={{
+                        '--type-color': type.color
                       } as React.CSSProperties}
                     >
                       <span className="type-icon">{type.icon}</span>
@@ -186,13 +186,13 @@ export function Onboarding() {
                     </motion.button>
                   ))}
                 </div>
-                
+
                 <p className="type-description">
                   {petTypes.find(t => t.id === selectedType)?.description}
                 </p>
 
                 {/* Egg Preview */}
-                <motion.div 
+                <motion.div
                   className="egg-preview"
                   initial={{ scale: 0.9 }}
                   animate={{ scale: 1 }}
@@ -201,8 +201,8 @@ export function Onboarding() {
                     animate={{ rotate: [-3, 3, -3] }}
                     transition={{ duration: 0.4, repeat: Infinity, ease: "easeInOut" }}
                     className="egg-emoji"
-                    style={{ 
-                      filter: `drop-shadow(0 0 20px ${petTypes.find(t => t.id === selectedType)?.color}40)` 
+                    style={{
+                      filter: `drop-shadow(0 0 20px ${petTypes.find(t => t.id === selectedType)?.color}40)`
                     }}
                   >
                     🥚
@@ -251,7 +251,7 @@ export function Onboarding() {
         </AnimatePresence>
 
         {step < 4 && (
-          <motion.div 
+          <motion.div
             className="onboarding-buttons"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

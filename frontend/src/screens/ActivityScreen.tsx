@@ -7,12 +7,14 @@ import {
   FireIcon,
   MapPinIcon,
   ClockIcon,
-  BoltIcon
+  BoltIcon,
+  TrophyIcon,
 } from '../components/Icons';
 
 export function ActivityScreen() {
   const stats = useGameStore((s) => s.stats);
   const pet = useGameStore((s) => s.pet);
+  const setScreen = useGameStore((s) => s.setScreen);
 
   // Generate last 7 days data for chart
   const weekData = useMemo(() => {
@@ -62,7 +64,7 @@ export function ActivityScreen() {
               <div className="big-stat-label">steps</div>
               <div className="big-stat-progress">
                 <div className="progress-track large">
-                  <motion.div 
+                  <motion.div
                     className="progress-fill daily"
                     animate={{ width: `${dailyPercent}%` }}
                     transition={{ duration: 0.5 }}
@@ -71,6 +73,33 @@ export function ActivityScreen() {
                 <span className="progress-text">{Math.round(dailyPercent)}% of goal</span>
               </div>
             </div>
+
+            {/* Leaderboard Button */}
+            <motion.button
+              className="leaderboard-btn"
+              onClick={() => setScreen('leaderboard')}
+              whileTap={{ scale: 0.95 }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                marginTop: '15px',
+                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                color: 'white',
+                fontWeight: 600,
+                fontSize: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 6px rgba(245, 158, 11, 0.2)'
+              }}
+            >
+              <TrophyIcon size={20} color="white" />
+              View Global Leaderboard
+            </motion.button>
 
             <div className="stat-row">
               <div className="stat-tile">
@@ -103,7 +132,7 @@ export function ActivityScreen() {
             <div className="chart-bars">
               {weekData.map((day, i) => (
                 <div key={day.date} className="chart-bar-container">
-                  <motion.div 
+                  <motion.div
                     className={`chart-bar ${day.isToday ? 'today' : ''} ${day.steps >= stats.dailyGoal ? 'goal-met' : ''}`}
                     initial={{ height: 0 }}
                     animate={{ height: `${Math.max((day.steps / maxSteps) * 100, 5)}%` }}
@@ -127,7 +156,7 @@ export function ActivityScreen() {
               <span className="summary-label">Weekly Goal</span>
               <div className="summary-progress">
                 <div className="progress-track">
-                  <motion.div 
+                  <motion.div
                     className="progress-fill secondary"
                     animate={{ width: `${weeklyPercent}%` }}
                   />

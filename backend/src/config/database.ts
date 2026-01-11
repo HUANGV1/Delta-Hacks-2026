@@ -1,181 +1,160 @@
-import Database from 'better-sqlite3';
+import initSqlJs, { Database } from 'sql.js';
 import path from 'path';
 import fs from 'fs';
 
-let db: Database.Database | null = null;
+let db: Database;
 
-export const connectDB = (): Database.Database => {
-  if (db) {
-    return db;
+export async function initDatabase(): Promise<Database> {
+  const dbPath = process.env.DATABASE_PATH || 'data/steppal.db';
+  const dbDir = path.dirname(dbPath);
+
+  // Ensure data directory exists
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
   }
 
-  // Create data directory if it doesn't exist
-  const dataDir = path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+  const SQL = await initSqlJs();
+
+  // Load existing database or create new one
+  if (fs.existsSync(dbPath)) {
+    const buffer = fs.readFileSync(dbPath);
+    db = new SQL.Database(buffer);
+    console.log(`SQLite Loaded: ${dbPath}`);
+  } else {
+    db = new SQL.Database();
+    console.log(`SQLite Created: ${dbPath}`);
   }
 
-  const dbPath = process.env.DATABASE_PATH || path.join(dataDir, 'steppal.db');
-  
-  db = new Database(dbPath);
-  
-  // Enable foreign keys
-  db.pragma('foreign_keys = ON');
-  
   // Create tables
-  createTables(db);
-  
-  console.log(`SQLite Connected: ${dbPath}`);
-  return db;
-};
+  createTables();
 
-const createTables = (database: Database.Database) => {
+  // Save to file
+  saveDatabase();
+
+  return db;
+}
+
+export function getDB(): Database {
+  if (!db) {
+    throw new Error('Database not initialized');
+  }
+  return db;
+}
+
+export function saveDatabase() {
+  const dbPath = process.env.DATABASE_PATH || 'data/steppal.db';
+  const data = db.export();
+  const buffer = Buffer.from(data);
+  fs.writeFileSync(dbPath, buffer);
+}
+
+function createTables() {
   // Users table
-  database.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
   // Game states table
-  database.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS game_states (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER UNIQUE NOT NULL,
-      pet_name TEXT DEFAULT 'Pet',
+      
+      pet_name TEXT DEFAULT '',
       pet_type TEXT DEFAULT 'phoenix',
       pet_stage TEXT DEFAULT 'egg',
-      pet_level INTEGER DEFAULT 1,
+      pet_level INTEGER DEFAULT 0,
       pet_experience INTEGER DEFAULT 0,
-      pet_experience_to_next_level INTEGER DEFAULT 100,
-      pet_mood TEXT DEFAULT 'neutral',
-      pet_mood_points REAL DEFAULT 50,
-      pet_total_steps_all_time INTEGER DEFAULT 0,
-      pet_mining_efficiency REAL DEFAULT 0,
-      pet_last_fed_time INTEGER DEFAULT 0,
-      pet_last_played_time INTEGER DEFAULT 0,
+      pet_mood_points INTEGER DEFAULT 50,
       pet_hatched INTEGER DEFAULT 0,
-      pet_evolution_animation INTEGER DEFAULT 0,
       pet_environment TEXT DEFAULT 'meadow',
-      pet_hunger INTEGER DEFAULT 100,
-      pet_energy INTEGER DEFAULT 100,
-      pet_happiness INTEGER DEFAULT 50,
+      pet_hunger INTEGER DEFAULT 80,
+      pet_energy INTEGER DEFAULT 80,
+      pet_happiness INTEGER DEFAULT 70,
       pet_health INTEGER DEFAULT 100,
-      pet_unlockables TEXT DEFAULT '[]',
+      pet_last_fed_time INTEGER,
+      pet_last_played_time INTEGER,
       pet_cosmetics TEXT DEFAULT '{}',
-      stats_steps_today INTEGER DEFAULT 0,
-      stats_steps_this_week INTEGER DEFAULT 0,
-      stats_steps_this_month INTEGER DEFAULT 0,
-      stats_last_step_update TEXT DEFAULT '',
-      stats_streak INTEGER DEFAULT 0,
-      stats_longest_streak INTEGER DEFAULT 0,
-      stats_last_active_date TEXT DEFAULT '',
-      stats_daily_goal INTEGER DEFAULT 10000,
-      stats_weekly_goal INTEGER DEFAULT 70000,
-      stats_daily_history TEXT DEFAULT '[]',
-      stats_weekly_history TEXT DEFAULT '[]',
-      coins_balance REAL DEFAULT 0,
-      coins_pending_reward REAL DEFAULT 0,
-      coins_total_earned REAL DEFAULT 0,
-      coins_last_claim_time INTEGER DEFAULT 0,
-      coins_mining_rate REAL DEFAULT 10,
-      coins_mining_history TEXT DEFAULT '[]',
-      settings_notifications INTEGER DEFAULT 1,
-      settings_sound_effects INTEGER DEFAULT 1,
-      settings_haptics INTEGER DEFAULT 1,
-      settings_theme TEXT DEFAULT 'dark',
-      settings_step_source TEXT DEFAULT 'manual',
-      settings_language TEXT DEFAULT 'en',
+      
+      steps_today INTEGER DEFAULT 0,
+      steps_this_week INTEGER DEFAULT 0,
+      steps_all_time INTEGER DEFAULT 0,
+      last_step_update TEXT,
+      streak INTEGER DEFAULT 0,
+      longest_streak INTEGER DEFAULT 0,
+      daily_goal INTEGER DEFAULT 8000,
+      weekly_goal INTEGER DEFAULT 50000,
+      last_active_date TEXT,
+      daily_history TEXT DEFAULT '[]',
+      
+      coins_balance INTEGER DEFAULT 0,
+      coins_pending REAL DEFAULT 0,
+      coins_total_earned INTEGER DEFAULT 0,
+      last_claim_time INTEGER,
+      mining_history TEXT DEFAULT '[]',
+      
+      crates_available INTEGER DEFAULT 0,
+      crates_opened INTEGER DEFAULT 0,
+      steps_toward_next_crate INTEGER DEFAULT 0,
+      
+      settings TEXT DEFAULT '{"notifications":true,"soundEffects":true,"haptics":true,"theme":"dark","stepSource":"manual","language":"en"}',
+      
       initialized INTEGER DEFAULT 0,
-      last_update_time INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_update_time INTEGER,
+
+      net_worth INTEGER DEFAULT 0,
+      
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
+  // Migration for existing tables
+  try {
+    db.run('ALTER TABLE game_states ADD COLUMN net_worth INTEGER DEFAULT 0');
+    console.log('Added net_worth column to game_states');
+  } catch (e) {
+    // Column likely already exists
+    // console.log('net_worth column already exists or error adding it');
+  }
+
   // Challenges table
-  database.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS challenges (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT NOT NULL,
       user_id INTEGER NOT NULL,
       type TEXT NOT NULL,
       title TEXT NOT NULL,
-      description TEXT NOT NULL,
+      description TEXT,
       icon TEXT DEFAULT '🎯',
       target INTEGER NOT NULL,
       current INTEGER DEFAULT 0,
       reward INTEGER NOT NULL,
-      expires_at INTEGER NOT NULL,
+      expires_at INTEGER,
       completed INTEGER DEFAULT 0,
       claimed INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id, user_id),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
   // Achievements table
-  database.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS achievements (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT NOT NULL,
       user_id INTEGER NOT NULL,
-      achievement_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
-      icon TEXT DEFAULT '🏆',
       progress INTEGER DEFAULT 0,
-      target INTEGER NOT NULL,
       unlocked_at INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      UNIQUE(user_id, achievement_id)
+      PRIMARY KEY (id, user_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
-  // Step history table
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS step_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      date TEXT NOT NULL,
-      steps INTEGER DEFAULT 0,
-      calories REAL DEFAULT 0,
-      distance REAL DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      UNIQUE(user_id, date)
-    )
-  `);
-
-  // Create indexes
-  database.exec(`
-    CREATE INDEX IF NOT EXISTS idx_game_states_user_id ON game_states(user_id);
-    CREATE INDEX IF NOT EXISTS idx_challenges_user_id ON challenges(user_id);
-    CREATE INDEX IF NOT EXISTS idx_challenges_expires_at ON challenges(expires_at);
-    CREATE INDEX IF NOT EXISTS idx_achievements_user_id ON achievements(user_id);
-    CREATE INDEX IF NOT EXISTS idx_step_history_user_id ON step_history(user_id);
-    CREATE INDEX IF NOT EXISTS idx_step_history_date ON step_history(date);
-  `);
-};
-
-export const getDB = (): Database.Database => {
-  if (!db) {
-    return connectDB();
-  }
-  return db;
-};
-
-export const closeDB = () => {
-  if (db) {
-    db.close();
-    db = null;
-  }
-};
+  console.log('Database tables created');
+}

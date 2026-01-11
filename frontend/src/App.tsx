@@ -6,20 +6,22 @@ import { Onboarding } from './components/Onboarding';
 import { BottomNav } from './components/BottomNav';
 import { NotificationToast } from './components/NotificationToast';
 import apiService from './services/api';
-import { 
-  HomeScreen, 
-  ActivityScreen, 
-  EvolutionScreen, 
-  RewardsScreen, 
-  ChallengesScreen, 
-  ProfileScreen 
+import {
+  HomeScreen,
+  ActivityScreen,
+  EvolutionScreen,
+  RewardsScreen,
+  ChallengesScreen,
+  ProfileScreen,
+  MarketplaceScreen,
+  LeaderboardScreen
 } from './screens';
 import './App.css';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   const initialized = useGameStore((s) => s.initialized);
   const currentScreen = useGameStore((s) => s.currentScreen);
   const tick = useGameStore((s) => s.tick);
@@ -32,6 +34,8 @@ function App() {
     const checkAuth = async () => {
       const token = apiService.getToken();
       if (!token) {
+        // No token - clear any stale local storage and show auth
+        localStorage.removeItem('steppal-storage');
         setIsAuthenticated(false);
         setLoading(false);
         return;
@@ -40,22 +44,28 @@ function App() {
       try {
         const response = await apiService.getMe();
         if (response.success) {
-          // Load game state
+          // Load game state from backend
           const gameStateResponse = await apiService.getGameState();
           if (gameStateResponse.success && gameStateResponse.data) {
             const gameState = (gameStateResponse.data as any).gameState;
             if (gameState) {
+              // Set the complete game state from backend
               setGameState(gameState);
-              setInitialized(gameState.initialized);
+              // Explicitly set initialized based on backend data
+              if (gameState.initialized) {
+                setInitialized(true);
+              }
             }
           }
           setIsAuthenticated(true);
         } else {
-          // Token invalid, clear it
+          // Token invalid, clear everything
+          localStorage.removeItem('steppal-storage');
           apiService.logout();
           setIsAuthenticated(false);
         }
       } catch (error) {
+        localStorage.removeItem('steppal-storage');
         apiService.logout();
         setIsAuthenticated(false);
       } finally {
@@ -69,7 +79,7 @@ function App() {
   // Periodic updates
   useEffect(() => {
     if (!isAuthenticated) return;
-    
+
     const interval = setInterval(() => {
       tick();
       generateDailyChallenges();
@@ -100,6 +110,7 @@ function App() {
   }
 
   const renderScreen = () => {
+    console.log('Current Screen:', currentScreen);
     switch (currentScreen) {
       case 'home':
         return <HomeScreen key="home" />;
@@ -113,6 +124,10 @@ function App() {
         return <ChallengesScreen key="challenges" />;
       case 'profile':
         return <ProfileScreen key="profile" />;
+      case 'marketplace':
+        return <MarketplaceScreen key="marketplace" />;
+      case 'leaderboard':
+        return <LeaderboardScreen key="leaderboard" onClose={() => useGameStore.setState({ currentScreen: 'activity' })} />;
       default:
         return <HomeScreen key="home" />;
     }
@@ -132,7 +147,7 @@ function App() {
           {renderScreen()}
         </motion.div>
       </AnimatePresence>
-      
+
       <BottomNav />
       <NotificationToast />
     </div>

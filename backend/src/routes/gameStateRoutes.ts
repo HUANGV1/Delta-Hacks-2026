@@ -1,56 +1,35 @@
-import express from 'express';
-import { body } from 'express-validator';
+import { Router } from 'express';
+import { authMiddleware } from '../middleware/auth';
 import {
-  getGameState,
-  initializeGame,
-  addSteps,
-  claimCoins,
-  petCare,
-  hatchEgg,
-  updateEnvironment,
-  updateSettings,
+    getGameState,
+    initializeGame,
+    addSteps,
+    claimCoins,
+    petCare,
+    hatchEgg,
+    updateEnvironment,
+    updateSettings,
+    openCrate,
+    buyItem,
+    equipItem,
+    resetSteps,
+    getLeaderboard,
 } from '../controllers/gameStateController';
-import { protect } from '../middleware/auth';
 
-const router = express.Router();
+const router = Router();
 
-// All routes require authentication
-router.use(protect);
-
-router.get('/', getGameState);
-
-router.post(
-  '/initialize',
-  [
-    body('petName').optional().isString().trim(),
-    body('petType').optional().isIn(['phoenix', 'dragon', 'spirit', 'nature']),
-  ],
-  initializeGame
-);
-
-router.post(
-  '/steps',
-  [body('steps').isInt({ min: 0, max: 30000 }).withMessage('Invalid step count')],
-  addSteps
-);
-
-router.post('/claim-coins', claimCoins);
-
-router.post(
-  '/care',
-  [body('action').isIn(['feed', 'play', 'heal', 'boost']).withMessage('Invalid care action')],
-  petCare
-);
-
-router.post('/hatch', hatchEgg);
-
-router.put(
-  '/environment',
-  [body('environment').isIn(['meadow', 'space', 'cozy', 'beach']).withMessage('Invalid environment')],
-  updateEnvironment
-);
-
-router.put('/settings', updateSettings);
+router.get('/', authMiddleware, getGameState);
+router.post('/initialize', authMiddleware, initializeGame);
+router.post('/steps', authMiddleware, addSteps);
+router.post('/claim-coins', authMiddleware, claimCoins);
+router.post('/care', authMiddleware, petCare);
+router.post('/hatch', authMiddleware, hatchEgg);
+router.post('/open-crate', authMiddleware, openCrate);
+router.put('/environment', authMiddleware, updateEnvironment);
+router.put('/settings', authMiddleware, updateSettings);
+router.post('/buy-item', authMiddleware, buyItem);
+router.post('/equip-item', authMiddleware, equipItem);
+router.post('/reset-steps', authMiddleware, resetSteps);
+router.get('/leaderboard', authMiddleware, getLeaderboard);
 
 export default router;
-

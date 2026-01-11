@@ -53,7 +53,7 @@ class ApiService {
       let data: any;
       const contentType = response.headers.get('content-type');
       const isJson = contentType && contentType.includes('application/json');
-      
+
       try {
         const text = await response.text();
         if (text) {
@@ -71,7 +71,7 @@ class ApiService {
       if (!response.ok) {
         // Provide more specific error messages
         let errorMessage = data.message || 'Request failed';
-        
+
         // Handle specific status codes
         if (response.status === 400) {
           errorMessage = data.message || 'Invalid request. Please check your input.';
@@ -104,13 +104,13 @@ class ApiService {
     } catch (error: any) {
       // Handle network errors and other fetch failures
       let errorMessage = 'Network error';
-      
+
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
         errorMessage = 'Unable to connect to server. Please check if the backend is running.';
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       console.error('API request error:', error);
       return {
         success: false,
@@ -173,6 +173,12 @@ class ApiService {
     });
   }
 
+  async resetSteps() {
+    return this.request('/gamestate/reset-steps', {
+      method: 'POST',
+    });
+  }
+
   async claimCoins() {
     return this.request('/gamestate/claim-coins', {
       method: 'POST',
@@ -192,6 +198,12 @@ class ApiService {
     });
   }
 
+  async openCrate() {
+    return this.request('/gamestate/open-crate', {
+      method: 'POST',
+    });
+  }
+
   async updateEnvironment(environment: string) {
     return this.request('/gamestate/environment', {
       method: 'PUT',
@@ -202,7 +214,21 @@ class ApiService {
   async updateSettings(settings: any) {
     return this.request('/gamestate/settings', {
       method: 'PUT',
-      body: JSON.stringify(settings),
+      body: JSON.stringify(settings)
+    });
+  }
+
+  async buyItem(itemId: string) {
+    return this.request<{ gameState: any }>('/gamestate/buy-item', {
+      method: 'POST',
+      body: JSON.stringify({ itemId }),
+    });
+  }
+
+  async equipItem(itemId: string | null, slot: string) {
+    return this.request<{ gameState: any }>('/gamestate/equip-item', {
+      method: 'POST',
+      body: JSON.stringify({ itemId, slot }),
     });
   }
 
@@ -220,6 +246,12 @@ class ApiService {
   // Achievement endpoints
   async getAchievements() {
     return this.request('/achievements');
+  }
+
+  // Leaderboard endpoints
+  async getLeaderboard(search?: string) {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.request<{ leaderboard: any[] }>(`/gamestate/leaderboard${query}`);
   }
 }
 

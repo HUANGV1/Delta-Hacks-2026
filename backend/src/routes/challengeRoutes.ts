@@ -1,13 +1,10 @@
-import express from 'express';
+import { Router } from 'express';
+import { authMiddleware } from '../middleware/auth';
 import { getChallenges, claimChallenge } from '../controllers/challengeController';
-import { protect } from '../middleware/auth';
 
-const router = express.Router();
+const router = Router();
 
-router.use(protect);
-
-router.get('/', getChallenges);
-router.post('/:id/claim', claimChallenge);
+router.get('/', authMiddleware, getChallenges);
+router.post('/:challengeId/claim', authMiddleware, claimChallenge);
 
 export default router;
-

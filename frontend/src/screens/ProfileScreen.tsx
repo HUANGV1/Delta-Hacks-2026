@@ -32,7 +32,7 @@ export function ProfileScreen() {
   const boostPet = useGameStore((s) => s.boostPet);
   const updateSettings = useGameStore((s) => s.updateSettings);
   const resetGame = useGameStore((s) => s.resetGame);
-  
+
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'pet' | 'settings'>('pet');
@@ -82,13 +82,13 @@ export function ProfileScreen() {
 
         {/* Tab Switcher */}
         <div className="tab-switcher">
-          <button 
+          <button
             className={`tab-btn ${activeTab === 'pet' ? 'active' : ''}`}
             onClick={() => setActiveTab('pet')}
           >
             Pet Care
           </button>
-          <button 
+          <button
             className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
             onClick={() => setActiveTab('settings')}
           >
@@ -167,7 +167,7 @@ export function ProfileScreen() {
                     <span className="care-cost">{CARE_COSTS.feed}</span>
                     <span className="care-effect">+30 Hunger, +10 Happiness</span>
                   </motion.button>
-                  
+
                   <motion.button
                     className="care-action-btn"
                     onClick={playWithPet}
@@ -179,7 +179,7 @@ export function ProfileScreen() {
                     <span className="care-cost">{CARE_COSTS.play}</span>
                     <span className="care-effect">+25 Happiness, -10 Energy</span>
                   </motion.button>
-                  
+
                   <motion.button
                     className="care-action-btn"
                     onClick={healPet}
@@ -191,7 +191,7 @@ export function ProfileScreen() {
                     <span className="care-cost">{CARE_COSTS.heal}</span>
                     <span className="care-effect">Restore full health</span>
                   </motion.button>
-                  
+
                   <motion.button
                     className="care-action-btn boost"
                     onClick={boostPet}
@@ -244,40 +244,40 @@ export function ProfileScreen() {
               {/* Settings */}
               <section className="settings-section">
                 <h3 className="section-title">Preferences</h3>
-                
+
                 <div className="settings-list">
                   <div className="setting-item">
                     <div className="setting-info">
                       <span className="setting-icon"><BellIcon size={20} color="#a855f7" /></span>
                       <span className="setting-name">Notifications</span>
                     </div>
-                    <button 
+                    <button
                       className={`toggle-btn ${settings.notifications ? 'on' : 'off'}`}
                       onClick={() => updateSettings({ notifications: !settings.notifications })}
                     >
                       <div className="toggle-knob" />
                     </button>
                   </div>
-                  
+
                   <div className="setting-item">
                     <div className="setting-info">
                       <span className="setting-icon"><SpeakerIcon size={20} color="#14b8a6" /></span>
                       <span className="setting-name">Sound Effects</span>
                     </div>
-                    <button 
+                    <button
                       className={`toggle-btn ${settings.soundEffects ? 'on' : 'off'}`}
                       onClick={() => updateSettings({ soundEffects: !settings.soundEffects })}
                     >
                       <div className="toggle-knob" />
                     </button>
                   </div>
-                  
+
                   <div className="setting-item">
                     <div className="setting-info">
                       <span className="setting-icon"><VibrateIcon size={20} color="#fbbf24" /></span>
                       <span className="setting-name">Haptic Feedback</span>
                     </div>
-                    <button 
+                    <button
                       className={`toggle-btn ${settings.haptics ? 'on' : 'off'}`}
                       onClick={() => updateSettings({ haptics: !settings.haptics })}
                     >
@@ -360,6 +360,20 @@ export function ProfileScreen() {
                 >
                   Reset All Data
                 </motion.button>
+                <motion.button
+                  className="reset-btn"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to reset your steps to 0?')) {
+                      apiService.resetSteps().then(() => {
+                        window.location.reload();
+                      });
+                    }
+                  }}
+                  whileTap={{ scale: 0.98 }}
+                  style={{ marginTop: '10px', background: '#3b82f6' }}
+                >
+                  Reset Steps Only
+                </motion.button>
               </section>
             </motion.div>
           )}
@@ -389,13 +403,13 @@ export function ProfileScreen() {
                 This will permanently delete all your progress, including your pet, coins, and achievements. This action cannot be undone.
               </p>
               <div className="modal-actions">
-                <button 
+                <button
                   className="modal-btn cancel"
                   onClick={() => setShowResetConfirm(false)}
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   className="modal-btn danger"
                   onClick={() => {
                     resetGame();
@@ -433,13 +447,13 @@ export function ProfileScreen() {
                 You can log back in anytime. Your data is saved on the server.
               </p>
               <div className="modal-actions">
-                <button 
+                <button
                   className="modal-btn cancel"
                   onClick={() => setShowLogoutConfirm(false)}
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   className="modal-btn primary"
                   onClick={handleLogout}
                   style={{ background: 'var(--accent)' }}
@@ -451,6 +465,6 @@ export function ProfileScreen() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </div >
   );
 }

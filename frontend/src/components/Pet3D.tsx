@@ -1,8 +1,8 @@
 import { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { 
-  Environment, 
-  Float, 
+import {
+  Environment,
+  Float,
   MeshDistortMaterial,
   Sparkles,
   Stars
@@ -16,6 +16,11 @@ interface Pet3DProps {
   name: string;
   environment: 'meadow' | 'space' | 'cozy' | 'beach';
   onHatch?: () => void;
+  cosmetics?: {
+    hat?: string;
+    glasses?: string;
+    neck?: string;
+  };
 }
 
 // Color palettes for each stage
@@ -39,10 +44,80 @@ const moodSettings: Record<PetMood, { bounceSpeed: number; bounceHeight: number;
   neglected: { bounceSpeed: 0.3, bounceHeight: 0.02, eyeScale: 0.8 },
 };
 
+function Accessories({ cosmetics, scale = 1 }: { cosmetics?: Pet3DProps['cosmetics']; scale?: number }) {
+  if (!cosmetics) return null;
+
+  return (
+    <group>
+      {/* Hat */}
+      {cosmetics.hat === 'beanie_red' && (
+        <mesh position={[0, 0.5 * scale, 0]} scale={scale}>
+          <sphereGeometry args={[0.35, 32, 32, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshStandardMaterial color="#EF4444" />
+        </mesh>
+      )}
+      {cosmetics.hat === 'party_hat' && (
+        <group position={[0, 0.6 * scale, 0]} rotation={[0, 0, -0.2]} scale={scale}>
+          <mesh position={[0, 0.2, 0]}>
+            <coneGeometry args={[0.2, 0.5, 32]} />
+            <meshStandardMaterial color="#3B82F6" />
+          </mesh>
+          <mesh position={[0, -0.05, 0]}>
+            <torusGeometry args={[0.2, 0.05, 16, 32]} />
+            <meshStandardMaterial color="#F59E0B" />
+          </mesh>
+        </group>
+      )}
+
+      {/* Glasses */}
+      {cosmetics.glasses === 'sunglasses' && (
+        <group position={[0, 0.2 * scale, 0.9 * scale]} scale={scale}>
+          <mesh position={[-0.15, 0, 0]}>
+            <boxGeometry args={[0.25, 0.15, 0.05]} />
+            <meshStandardMaterial color="#111827" />
+          </mesh>
+          <mesh position={[0.15, 0, 0]}>
+            <boxGeometry args={[0.25, 0.15, 0.05]} />
+            <meshStandardMaterial color="#111827" />
+          </mesh>
+          <mesh position={[0, 0, 0]}>
+            <boxGeometry args={[0.1, 0.02, 0.05]} />
+            <meshStandardMaterial color="#111827" />
+          </mesh>
+        </group>
+      )}
+
+      {/* Neck */}
+      {cosmetics.neck === 'chain_gold' && (
+        <mesh position={[0, -0.4 * scale, 0.5 * scale]} rotation={[0.5, 0, 0]} scale={scale}>
+          <torusGeometry args={[0.4, 0.08, 16, 32]} />
+          <meshStandardMaterial color="#F59E0B" metalness={0.8} roughness={0.2} />
+        </mesh>
+      )}
+      {cosmetics.neck === 'bow_tie' && (
+        <group position={[0, -0.4 * scale, 0.8 * scale]} scale={scale}>
+          <mesh position={[-0.15, 0, 0]} rotation={[0, 0, 0.5]}>
+            <coneGeometry args={[0.15, 0.3, 3]} />
+            <meshStandardMaterial color="#EF4444" />
+          </mesh>
+          <mesh position={[0.15, 0, 0]} rotation={[0, 0, -0.5]}>
+            <coneGeometry args={[0.15, 0.3, 3]} />
+            <meshStandardMaterial color="#EF4444" />
+          </mesh>
+          <mesh>
+            <sphereGeometry args={[0.08]} />
+            <meshStandardMaterial color="#EF4444" />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+}
+
 // Egg Component
 function Egg({ colors, onClick }: { colors: typeof stageColors.egg; onClick?: () => void }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  
+
   useFrame((state) => {
     if (meshRef.current) {
       meshRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 3) * 0.1;
@@ -87,7 +162,7 @@ function Egg({ colors, onClick }: { colors: typeof stageColors.egg; onClick?: ()
 }
 
 // Baby Pet - Small, round, cute
-function BabyPet({ colors, mood }: { colors: typeof stageColors.baby; mood: PetMood }) {
+function BabyPet({ colors, mood, cosmetics }: { colors: typeof stageColors.baby; mood: PetMood; cosmetics?: Pet3DProps['cosmetics'] }) {
   const groupRef = useRef<THREE.Group>(null);
   const settings = moodSettings[mood];
 
@@ -106,7 +181,7 @@ function BabyPet({ colors, mood }: { colors: typeof stageColors.baby; mood: PetM
           <sphereGeometry args={[1, 32, 32]} />
           <MeshDistortMaterial color={colors.primary} speed={1.5} distort={0.15} />
         </mesh>
-        
+
         {/* Belly */}
         <mesh position={[0, -0.1, 0.6]} scale={[0.6, 0.5, 0.3]}>
           <sphereGeometry args={[1, 32, 32]} />
@@ -128,7 +203,7 @@ function BabyPet({ colors, mood }: { colors: typeof stageColors.baby; mood: PetM
             <sphereGeometry args={[0.04, 16, 16]} />
             <meshStandardMaterial color="#FFFFFF" />
           </mesh>
-          
+
           {/* Right eye */}
           <mesh position={[0.25, 0, 0]}>
             <sphereGeometry args={[0.2, 32, 32]} />
@@ -171,13 +246,18 @@ function BabyPet({ colors, mood }: { colors: typeof stageColors.baby; mood: PetM
           <sphereGeometry args={[1, 16, 16]} />
           <meshStandardMaterial color={colors.secondary} />
         </mesh>
+
+        {/* Accessories */}
+        <group position={[0, 0.6, 0]}>
+          <Accessories cosmetics={cosmetics} scale={0.8} />
+        </group>
       </group>
     </Float>
   );
 }
 
 // Child Pet - Slightly larger, with ears
-function ChildPet({ colors, mood }: { colors: typeof stageColors.child; mood: PetMood }) {
+function ChildPet({ colors, mood, cosmetics }: { colors: typeof stageColors.child; mood: PetMood; cosmetics?: Pet3DProps['cosmetics'] }) {
   const groupRef = useRef<THREE.Group>(null);
   const settings = moodSettings[mood];
 
@@ -240,7 +320,7 @@ function ChildPet({ colors, mood }: { colors: typeof stageColors.child; mood: Pe
             <sphereGeometry args={[0.035, 16, 16]} />
             <meshStandardMaterial color="#FFFFFF" />
           </mesh>
-          
+
           <mesh position={[0.25, 0, 0]}>
             <sphereGeometry args={[0.18, 32, 32]} />
             <meshStandardMaterial color="#FFFFFF" />
@@ -280,13 +360,18 @@ function ChildPet({ colors, mood }: { colors: typeof stageColors.child; mood: Pe
           <sphereGeometry args={[1, 16, 16]} />
           <meshStandardMaterial color={colors.secondary} />
         </mesh>
+
+        {/* Accessories */}
+        <group position={[0, 1.2, 0]}>
+          <Accessories cosmetics={cosmetics} scale={0.85} />
+        </group>
       </group>
     </Float>
   );
 }
 
 // Teen Pet - More dynamic, with accessories
-function TeenPet({ colors, mood }: { colors: typeof stageColors.teen; mood: PetMood }) {
+function TeenPet({ colors, mood, cosmetics }: { colors: typeof stageColors.teen; mood: PetMood; cosmetics?: Pet3DProps['cosmetics'] }) {
   const groupRef = useRef<THREE.Group>(null);
   const settings = moodSettings[mood];
 
@@ -342,7 +427,7 @@ function TeenPet({ colors, mood }: { colors: typeof stageColors.teen; mood: PetM
             <sphereGeometry args={[0.04, 16, 16]} />
             <meshStandardMaterial color="#FFFFFF" />
           </mesh>
-          
+
           <mesh position={[0.28, 0, 0]} scale={[1, 1.1, 1]}>
             <sphereGeometry args={[0.2, 32, 32]} />
             <meshStandardMaterial color="#FFFFFF" />
@@ -396,13 +481,18 @@ function TeenPet({ colors, mood }: { colors: typeof stageColors.teen; mood: PetM
           <sphereGeometry args={[1, 16, 16]} />
           <meshStandardMaterial color={colors.secondary} />
         </mesh>
+
+        {/* Accessories */}
+        <group position={[0, 1.4, 0]}>
+          <Accessories cosmetics={cosmetics} scale={0.9} />
+        </group>
       </group>
     </Float>
   );
 }
 
 // Adult Pet - Majestic with wings
-function AdultPet({ colors, mood }: { colors: typeof stageColors.adult; mood: PetMood }) {
+function AdultPet({ colors, mood, cosmetics }: { colors: typeof stageColors.adult; mood: PetMood; cosmetics?: Pet3DProps['cosmetics'] }) {
   const groupRef = useRef<THREE.Group>(null);
   const wingsRef = useRef<THREE.Group>(null);
   const settings = moodSettings[mood];
@@ -482,7 +572,7 @@ function AdultPet({ colors, mood }: { colors: typeof stageColors.adult; mood: Pe
             <sphereGeometry args={[0.045, 16, 16]} />
             <meshStandardMaterial color="#FFFFFF" />
           </mesh>
-          
+
           <mesh position={[0.3, 0, 0]} scale={[1, 1.15, 1]}>
             <sphereGeometry args={[0.22, 32, 32]} />
             <meshStandardMaterial color="#FFFFFF" />
@@ -525,13 +615,18 @@ function AdultPet({ colors, mood }: { colors: typeof stageColors.adult; mood: Pe
           <capsuleGeometry args={[1, 1, 8, 16]} />
           <meshStandardMaterial color={colors.secondary} />
         </mesh>
+
+        {/* Accessories */}
+        <group position={[0, 1.5, 0]}>
+          <Accessories cosmetics={cosmetics} scale={1} />
+        </group>
       </group>
     </Float>
   );
 }
 
 // Elder Pet - Wise with magical elements
-function ElderPet({ colors, mood }: { colors: typeof stageColors.elder; mood: PetMood }) {
+function ElderPet({ colors, mood, cosmetics }: { colors: typeof stageColors.elder; mood: PetMood; cosmetics?: Pet3DProps['cosmetics'] }) {
   const groupRef = useRef<THREE.Group>(null);
   const settings = moodSettings[mood];
 
@@ -598,7 +693,7 @@ function ElderPet({ colors, mood }: { colors: typeof stageColors.elder; mood: Pe
             <sphereGeometry args={[0.1, 32, 32]} />
             <meshStandardMaterial color="#B8860B" />
           </mesh>
-          
+
           <mesh position={[0.28, 0, 0]}>
             <sphereGeometry args={[0.18, 32, 32]} />
             <meshStandardMaterial color="#FFFFFF" />
@@ -632,13 +727,18 @@ function ElderPet({ colors, mood }: { colors: typeof stageColors.elder; mood: Pe
           <sphereGeometry args={[1, 16, 16]} />
           <meshStandardMaterial color={colors.secondary} />
         </mesh>
+
+        {/* Accessories */}
+        <group position={[0, 1.55, 0]}>
+          <Accessories cosmetics={cosmetics} scale={1.1} />
+        </group>
       </group>
     </Float>
   );
 }
 
 // Legendary Pet - Ultimate form with rainbow effects
-function LegendaryPet({ colors, mood }: { colors: typeof stageColors.legendary; mood: PetMood }) {
+function LegendaryPet({ colors, mood, cosmetics }: { colors: typeof stageColors.legendary; mood: PetMood; cosmetics?: Pet3DProps['cosmetics'] }) {
   const groupRef = useRef<THREE.Group>(null);
   const settings = moodSettings[mood];
 
@@ -658,12 +758,12 @@ function LegendaryPet({ colors, mood }: { colors: typeof stageColors.legendary; 
         {[1.6, 1.9, 2.2].map((radius, i) => (
           <mesh key={i} rotation={[Math.PI / 2, 0, i * 0.3]} position={[0, 0, 0]}>
             <torusGeometry args={[radius, 0.03, 16, 100]} />
-            <meshStandardMaterial 
-              color={rainbowColors[i]} 
-              opacity={0.4 - i * 0.1} 
-              transparent 
-              emissive={rainbowColors[i]} 
-              emissiveIntensity={0.5} 
+            <meshStandardMaterial
+              color={rainbowColors[i]}
+              opacity={0.4 - i * 0.1}
+              transparent
+              emissive={rainbowColors[i]}
+              emissiveIntensity={0.5}
             />
           </mesh>
         ))}
@@ -724,7 +824,7 @@ function LegendaryPet({ colors, mood }: { colors: typeof stageColors.legendary; 
             <sphereGeometry args={[0.05, 16, 16]} />
             <meshStandardMaterial color="#FFFFFF" />
           </mesh>
-          
+
           <mesh position={[0.32, 0, 0]} scale={[1, 1.2, 1]}>
             <sphereGeometry args={[0.24, 32, 32]} />
             <meshStandardMaterial color="#FFFFFF" />
@@ -752,6 +852,11 @@ function LegendaryPet({ colors, mood }: { colors: typeof stageColors.legendary; 
           ))}
         </group>
 
+        {/* Accessories */}
+        <group position={[0, 1.65, 0]}>
+          <Accessories cosmetics={cosmetics} scale={1.2} />
+        </group>
+
         {/* Feet */}
         <mesh position={[-0.45, -1.4, 0.25]} scale={[0.38, 0.16, 0.48]}>
           <sphereGeometry args={[1, 16, 16]} />
@@ -773,17 +878,17 @@ function MeadowEnvironment() {
       <ambientLight intensity={0.6} />
       <directionalLight position={[5, 10, 5]} intensity={1} castShadow />
       <Environment preset="park" background blur={0.8} />
-      
+
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.5, 0]} receiveShadow>
         <circleGeometry args={[10, 32]} />
         <meshStandardMaterial color="#7CB342" />
       </mesh>
-      
+
       {/* Flowers */}
       {[...Array(20)].map((_, i) => (
-        <mesh 
-          key={i} 
+        <mesh
+          key={i}
           position={[
             (Math.random() - 0.5) * 8,
             -2.3,
@@ -807,7 +912,7 @@ function SpaceEnvironment() {
       <pointLight position={[5, 0, 5]} intensity={0.5} color="#06B6D4" />
       <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
       <Environment preset="night" background />
-      
+
       {/* Floating platform */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.5, 0]}>
         <circleGeometry args={[3, 32]} />
@@ -828,7 +933,7 @@ function CozyEnvironment() {
       <pointLight position={[3, 3, 3]} intensity={1} color="#FFA500" />
       <spotLight position={[0, 5, 0]} intensity={0.5} angle={0.6} penumbra={1} color="#FFE4B5" />
       <Environment preset="apartment" background blur={0.9} />
-      
+
       {/* Cozy rug */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.5, 0]}>
         <circleGeometry args={[4, 32]} />
@@ -848,17 +953,17 @@ function BeachEnvironment() {
       <ambientLight intensity={0.7} />
       <directionalLight position={[10, 10, 5]} intensity={1.2} color="#FFF8DC" />
       <Environment preset="sunset" background blur={0.6} />
-      
+
       {/* Sand */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.5, 0]}>
         <circleGeometry args={[10, 32]} />
         <meshStandardMaterial color="#F4A460" />
       </mesh>
-      
+
       {/* Shells */}
       {[...Array(10)].map((_, i) => (
-        <mesh 
-          key={i} 
+        <mesh
+          key={i}
           position={[
             (Math.random() - 0.5) * 6,
             -2.4,
@@ -883,7 +988,7 @@ const environments = {
 };
 
 // Main Scene Component
-function PetScene({ stage, mood, environment, onHatch }: Omit<Pet3DProps, 'name'>) {
+function PetScene({ stage, mood, environment, onHatch, cosmetics }: Omit<Pet3DProps, 'name'>) {
   const colors = stageColors[stage];
   const EnvironmentComponent = environments[environment];
 
@@ -892,19 +997,19 @@ function PetScene({ stage, mood, environment, onHatch }: Omit<Pet3DProps, 'name'
       case 'egg':
         return <Egg colors={colors} onClick={onHatch} />;
       case 'baby':
-        return <BabyPet colors={colors} mood={mood} />;
+        return <BabyPet colors={colors} mood={mood} cosmetics={cosmetics} />;
       case 'child':
-        return <ChildPet colors={colors} mood={mood} />;
+        return <ChildPet colors={colors} mood={mood} cosmetics={cosmetics} />;
       case 'teen':
-        return <TeenPet colors={colors} mood={mood} />;
+        return <TeenPet colors={colors} mood={mood} cosmetics={cosmetics} />;
       case 'adult':
-        return <AdultPet colors={colors} mood={mood} />;
+        return <AdultPet colors={colors} mood={mood} cosmetics={cosmetics} />;
       case 'elder':
-        return <ElderPet colors={colors} mood={mood} />;
+        return <ElderPet colors={colors} mood={mood} cosmetics={cosmetics} />;
       case 'legendary':
-        return <LegendaryPet colors={colors} mood={mood} />;
+        return <LegendaryPet colors={colors} mood={mood} cosmetics={cosmetics} />;
       default:
-        return <BabyPet colors={colors} mood={mood} />;
+        return <BabyPet colors={colors} mood={mood} cosmetics={cosmetics} />;
     }
   };
 
@@ -919,7 +1024,7 @@ function PetScene({ stage, mood, environment, onHatch }: Omit<Pet3DProps, 'name'
 }
 
 // Main Export Component
-export function Pet3D({ stage, mood, name, environment, onHatch }: Pet3DProps) {
+export function Pet3D({ stage, mood, name, environment, onHatch, cosmetics }: Pet3DProps) {
   return (
     <div className="pet-3d-container">
       <Canvas
@@ -927,14 +1032,14 @@ export function Pet3D({ stage, mood, name, environment, onHatch }: Pet3DProps) {
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
       >
-        <PetScene stage={stage} mood={mood} environment={environment} onHatch={onHatch} />
+        <PetScene stage={stage} mood={mood} environment={environment} onHatch={onHatch} cosmetics={cosmetics} />
       </Canvas>
-      
+
       <div className="pet-3d-info">
         <span className="pet-3d-name">{name}</span>
         <span className="pet-3d-stage">{stage}</span>
       </div>
-      
+
       {stage === 'egg' && (
         <div className="pet-3d-hint">Tap to hatch</div>
       )}

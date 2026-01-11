@@ -3,11 +3,11 @@ import { motion } from 'framer-motion';
 import { useGameStore } from '../store';
 import { format, subDays } from 'date-fns';
 import { MINING_EFFICIENCY } from '../types';
-import { 
-  CoinsIcon, 
-  BoltIcon, 
-  ChartIcon, 
-  TargetIcon, 
+import {
+  CoinsIcon,
+  BoltIcon,
+  ChartIcon,
+  TargetIcon,
   FootprintsIcon,
   ArrowUpIcon,
   SparklesIcon
@@ -31,6 +31,7 @@ export function RewardsScreen() {
   const pet = useGameStore((s) => s.pet);
   const stats = useGameStore((s) => s.stats);
   const claimCoins = useGameStore((s) => s.claimCoins);
+  const setScreen = useGameStore((s) => s.setScreen);
 
   // Mining history chart
   const chartData = useMemo(() => {
@@ -61,6 +62,25 @@ export function RewardsScreen() {
     <div className="rewards-screen">
       <header className="screen-header simple">
         <h1 className="screen-title">Rewards</h1>
+        <motion.button
+          onClick={() => setScreen('marketplace')}
+          whileTap={{ scale: 0.95 }}
+          style={{
+            background: 'rgba(139, 92, 246, 0.2)',
+            border: '1px solid rgba(139, 92, 246, 0.4)',
+            borderRadius: '8px',
+            padding: '6px 12px',
+            color: '#e2e8f0',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          <span>🛍️</span> Shop
+        </motion.button>
       </header>
 
       <div className="rewards-content">
@@ -73,7 +93,7 @@ export function RewardsScreen() {
               <span className="balance-icon"><CoinsIcon size={40} color="#fbbf24" filled /></span>
               <span className="balance-value">{coins.balance.toLocaleString()}</span>
             </div>
-            
+
             {coins.pendingReward >= 0.1 && (
               <div className="pending-section">
                 <div className="pending-amount">
@@ -119,6 +139,40 @@ export function RewardsScreen() {
           </div>
         </section>
 
+        {/* Marketplace Banner */}
+        <section className="marketplace-banner" style={{ marginBottom: '24px' }}>
+          <motion.div
+            onClick={() => setScreen('marketplace')}
+            whileTap={{ scale: 0.98 }}
+            style={{
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              borderRadius: '24px',
+              padding: '20px',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              boxShadow: '0 8px 32px rgba(124, 58, 237, 0.25)',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '4px' }}>Marketplace</div>
+              <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>Spend coins on cool gear! 🛍️</div>
+            </div>
+            <div style={{
+              background: 'rgba(255,255,255,0.2)',
+              padding: '8px 16px',
+              borderRadius: '12px',
+              fontWeight: 600,
+              fontSize: '0.9rem'
+            }}>
+              Visit &rarr;
+            </div>
+          </motion.div>
+        </section>
+
         {/* Mining Power Breakdown */}
         <section className="mining-breakdown">
           <h3 className="section-title">Mining Power by Evolution</h3>
@@ -126,10 +180,10 @@ export function RewardsScreen() {
             {STAGE_ORDER.filter(s => s !== 'egg').map((stage) => {
               const isCurrent = stage === pet.stage;
               const isUnlocked = STAGE_ORDER.indexOf(stage) <= STAGE_ORDER.indexOf(pet.stage);
-              
+
               return (
-                <div 
-                  key={stage} 
+                <div
+                  key={stage}
                   className={`power-row ${isCurrent ? 'current' : ''} ${isUnlocked ? 'unlocked' : 'locked'}`}
                 >
                   <div className="power-stage">
@@ -155,12 +209,12 @@ export function RewardsScreen() {
             <h3 className="section-title">Weekly Earnings</h3>
             <span className="chart-total">{weeklyTotal.toLocaleString()}</span>
           </div>
-          
+
           <div className="coin-chart">
             <div className="chart-bars coins">
               {chartData.map((day, i) => (
                 <div key={day.date} className="chart-bar-container">
-                  <motion.div 
+                  <motion.div
                     className={`chart-bar coin ${day.isToday ? 'today' : ''}`}
                     initial={{ height: 0 }}
                     animate={{ height: `${Math.max((day.amount / maxAmount) * 100, 5)}%` }}
@@ -189,7 +243,7 @@ export function RewardsScreen() {
             <div className="lifetime-item">
               <div className="lifetime-icon"><ChartIcon size={24} color="#14b8a6" /></div>
               <div className="lifetime-value">
-                {pet.totalStepsAllTime > 0 
+                {pet.totalStepsAllTime > 0
                   ? (coins.totalEarned / (pet.totalStepsAllTime / 1000)).toFixed(1)
                   : '0'}
               </div>

@@ -1,50 +1,35 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import User from '../models/User';
 
 export interface AuthRequest extends Request {
-  userId?: string;
-  user?: any;
+    user?: {
+        id: number;
+        email: string;
+        username: string;
+    };
 }
 
-export const protect = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    let token: string | undefined;
+export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+    const authHeader = req.headers.authorization;
 
-    // Check for token in headers
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'No token provided' });
     }
 
-    if (!token) {
-      res.status(401).json({ success: false, message: 'Not authorized, no token' });
-      return;
-    }
+    const token = authHeader.split(' ')[1];
 
     try {
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as { id: string };
-      
-      // Get user from token
-      const userId = parseInt(decoded.id);
-      req.userId = decoded.id;
-      req.user = User.findById(userId);
-      
-      if (!req.user) {
-        res.status(401).json({ success: false, message: 'User not found' });
-        return;
-      }
+        const secret = process.env.JWT_SECRET || 'fallback-secret';
+        const decoded = jwt.verify(token, secret) as { id: number; email: string; username: string };
 
-      // Remove password from user object
-      const { password, ...userWithoutPassword } = req.user;
-      req.user = userWithoutPassword;
+        req.user = {
+            id: decoded.id,
+            email: decoded.email,
+            username: decoded.username,
+        };
 
-      next();
+        next();
     } catch (error) {
-      res.status(401).json({ success: false, message: 'Not authorized, token failed' });
-      return;
+        return res.status(401).json({ message: 'Invalid token' });
     }
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+}
