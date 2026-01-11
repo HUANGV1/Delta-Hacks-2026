@@ -1,6 +1,7 @@
 // API service for communicating with the backend
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+// Use the current hostname (localhost or IP) for the API URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3000/api`;
 
 interface ApiResponse<T> {
   success: boolean;
